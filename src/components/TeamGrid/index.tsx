@@ -306,17 +306,34 @@ export function TeamGrid({ estimateId, initialRows, laborRoles }: TeamGridProps)
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
-              <TeamRowItem
-                key={row.id}
-                row={row}
-                rowNumber={index + 1}
-                laborRoles={laborRoles}
-                onSave={handleSave}
-                onDelete={handleDelete}
-                saveState={rowSaveStates[row.id] ?? 'idle'}
-              />
-            ))}
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={7}
+                  style={{
+                    padding: '24px',
+                    textAlign: 'center',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '14px',
+                    color: 'var(--cc-gray-mid)',
+                  }}
+                >
+                  No team members yet. Click + to add one.
+                </td>
+              </tr>
+            ) : (
+              rows.map((row, index) => (
+                <TeamRowItem
+                  key={row.id}
+                  row={row}
+                  rowNumber={index + 1}
+                  laborRoles={laborRoles}
+                  onSave={handleSave}
+                  onDelete={handleDelete}
+                  saveState={rowSaveStates[row.id] ?? 'idle'}
+                />
+              ))
+            )}
           </tbody>
         </table>
       </div>

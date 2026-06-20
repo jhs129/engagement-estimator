@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { NewEstimateButton } from './NewEstimateButton';
 import { DeleteEstimateButton } from './DeleteEstimateButton';
+import { AdminLink } from './AdminLink';
 
 interface Estimate {
   id: string;
@@ -40,6 +41,7 @@ export function EstimatesDashboard({ estimates }: EstimatesDashboardProps) {
           Estimates
         </h1>
         <div className="flex items-center gap-4">
+          <AdminLink />
           <Link
             href="/profile"
             className="text-sm font-medium transition-opacity hover:opacity-70"

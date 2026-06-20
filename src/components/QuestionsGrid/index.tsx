@@ -266,16 +266,33 @@ export function QuestionsGrid({ estimateId, initialRows }: QuestionsGridProps) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
-              <QuestionRowItem
-                key={row.id}
-                row={row}
-                rowNumber={index + 1}
-                onSave={handleSave}
-                onDelete={handleDelete}
-                saveState={rowSaveStates[row.id] ?? 'idle'}
-              />
-            ))}
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={5}
+                  style={{
+                    padding: '24px',
+                    textAlign: 'center',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '14px',
+                    color: 'var(--cc-gray-mid)',
+                  }}
+                >
+                  No questions or assumptions yet. Click + to add one.
+                </td>
+              </tr>
+            ) : (
+              rows.map((row, index) => (
+                <QuestionRowItem
+                  key={row.id}
+                  row={row}
+                  rowNumber={index + 1}
+                  onSave={handleSave}
+                  onDelete={handleDelete}
+                  saveState={rowSaveStates[row.id] ?? 'idle'}
+                />
+              ))
+            )}
           </tbody>
         </table>
       </div>

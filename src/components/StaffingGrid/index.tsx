@@ -77,7 +77,7 @@ export function StaffingGrid({
             fontSize: '14px',
           }}
         >
-          No team members found. Add team members on the Team tab first.
+          No team members added. Go to the Team tab to add members.
         </p>
       </div>
     )

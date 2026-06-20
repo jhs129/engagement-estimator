@@ -607,6 +607,23 @@ function EpicGroupSection({
   return (
     <>
       <EpicGroupHeader epic={epic} totalHours={epicHours} colSpan={totalColCount} />
+      {epicStories.length === 0 && (
+        <tr>
+          <td
+            colSpan={totalColCount}
+            style={{
+              padding: '12px 12px',
+              fontFamily: 'var(--font-body)',
+              fontSize: '13px',
+              color: 'var(--cc-gray-mid)',
+              borderBottom: '1px solid var(--cc-gray-light)',
+              backgroundColor: '#fafafa',
+            }}
+          >
+            No stories. Click + to add one.
+          </td>
+        </tr>
+      )}
       {epicStories.map((story, idx) => (
         <StoryRowItem
           key={story.id}

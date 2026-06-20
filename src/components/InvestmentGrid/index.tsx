@@ -276,7 +276,7 @@ export function InvestmentGrid({
                     color: 'var(--cc-gray-mid)',
                   }}
                 >
-                  No team members with planned hours
+                  No team members added. Go to the Team tab to add members.
                 </td>
               </tr>
             )}
