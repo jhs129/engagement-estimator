@@ -28,6 +28,7 @@ model User {
   oauthAuthCodes     OAuthAuthCode[]
   oauthRefreshTokens OAuthRefreshToken[]
   oauthConsents      OAuthConsent[]
+  estimates          Estimate[]
 }
 
 model Account {
@@ -129,4 +130,134 @@ model OAuthConsent {
   client    OAuthClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@unique([userId, clientId])
+}
+
+// Engagement Estimator models
+
+model Estimate {
+  id                     String   @id @default(cuid())
+  name                   String
+  clientName             String
+  salesOwner             String
+  estimatedStartDate     DateTime?
+  projectDescription     String?
+  version                Float    @default(4.0)
+  riskPremiumPct         Float    @default(0.15)
+
+  smeTechnology          String?
+  smeCreativeUX          String?
+  smeStrategy            String?
+  smeData                String?
+  smeMedia               String?
+  smeMarketingAutomation String?
+  smeOther               String?
+
+  ratioQAToDev           Float @default(0.20)
+  ratioTestCaseAuthoring Float @default(0.10)
+  ratioDefectFixing      Float @default(0.25)
+  ratioAlphaTesting      Float @default(0.20)
+  ratioUAT               Float @default(0.10)
+
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions   Question[]
+  teamMembers TeamMember[]
+  epics       Epic[]
+  stories     Story[]
+}
+
+model LaborRole {
+  id           String  @id @default(cuid())
+  fullTitle    String
+  division     String
+  department   String
+  role         String
+  rackRate     Float
+  abbreviation String
+  isActive     Boolean @default(true)
+
+  teamMembers TeamMember[]
+}
+
+model TeamMember {
+  id                   String     @id @default(cuid())
+  estimateId           String
+  estimate             Estimate   @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  laborRoleId          String?
+  laborRole            LaborRole? @relation(fields: [laborRoleId], references: [id])
+  titleOverride        String?
+  abbreviationOverride String?
+  rackRateOverride     Float?
+  adjustedClientRate   Float?
+  targetedResource     String?
+  order                Int
+
+  storyStaffing StoryStaffing[]
+  staffingWeeks StaffingWeek[]
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  estimateId  String
+  estimate    Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  type        String
+  description String
+  notes       String?
+  order       Int
+}
+
+model Epic {
+  id           String   @id @default(cuid())
+  estimateId   String
+  estimate     Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  isFoundation Boolean  @default(false)
+  order        Int
+
+  stories Story[]
+}
+
+model Story {
+  id            String   @id @default(cuid())
+  estimateId    String
+  estimate      Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  epicId        String
+  epic          Epic     @relation(fields: [epicId], references: [id])
+  storyTask     String
+  description   String?
+  assumptions   String?
+  deliverables  String?
+  disabled      Boolean  @default(false)
+  testable      Boolean  @default(false)
+  estimateLow   Float?
+  estimateHigh  Float?
+  estimateMean  Float?
+  order         Int
+
+  staffingAllocations StoryStaffing[]
+}
+
+model StoryStaffing {
+  id           String     @id @default(cuid())
+  storyId      String
+  story        Story      @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  teamMemberId String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  hours        Float      @default(0)
+
+  @@unique([storyId, teamMemberId])
+}
+
+model StaffingWeek {
+  id            String     @id @default(cuid())
+  teamMemberId  String
+  teamMember    TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  weekStartDate DateTime
+  hours         Float      @default(0)
+
+  @@unique([teamMemberId, weekStartDate])
 }
