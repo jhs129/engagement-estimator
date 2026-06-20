@@ -115,14 +115,13 @@ export function EstimatesDashboard({ estimates }: EstimatesDashboardProps) {
           </table>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-32 gap-6">
+        <div className="flex items-center justify-center py-32">
           <p
             className="text-lg"
             style={{ color: 'var(--cc-gray-mid)', fontFamily: 'var(--font-display)' }}
           >
-            No estimates yet. Create your first estimate.
+            No estimates yet. Use the button above to create your first.
           </p>
-          <NewEstimateButton />
         </div>
       )}
     </main>
