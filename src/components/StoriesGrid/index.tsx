@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import type { StoryRow, EpicGroup, TeamMemberCol, StoriesGridProps } from './types'
 import { StoryRowItem } from './StoryRowItem'
 import { EpicGroupHeader } from './EpicGroupHeader'
@@ -53,17 +53,18 @@ export function StoriesGrid({
     epicOrder[e.id] = i
   })
 
-  const storiesByEpic: Record<string, StoryRow[]> = {}
-  epics.forEach((e) => {
-    storiesByEpic[e.id] = []
-  })
-  stories.forEach((s) => {
-    if (!storiesByEpic[s.epicId]) storiesByEpic[s.epicId] = []
-    storiesByEpic[s.epicId].push(s)
-  })
-  Object.keys(storiesByEpic).forEach((epicId) => {
-    storiesByEpic[epicId].sort((a, b) => a.order - b.order)
-  })
+  const storiesByEpic = useMemo(() => {
+    const map: Record<string, StoryRow[]> = {}
+    epics.forEach((e) => { map[e.id] = [] })
+    stories.forEach((s) => {
+      if (!map[s.epicId]) map[s.epicId] = []
+      map[s.epicId].push(s)
+    })
+    Object.keys(map).forEach((epicId) => {
+      map[epicId].sort((a, b) => a.order - b.order)
+    })
+    return map
+  }, [epics, stories])
 
   const handlePatchStory = useCallback(
     async (storyId: string, changes: Partial<StoryRow>) => {

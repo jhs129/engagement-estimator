@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import type { StoryRow, EpicGroup, TeamMemberCol } from './types'
 import { calculateBalanceCheck } from './balanceCheck'
 
@@ -96,18 +96,6 @@ export function StoryRowItem({
   const [localMean, setLocalMean] = useState(story.estimateMean !== null ? String(story.estimateMean) : '')
   const [meanManual, setMeanManual] = useState(false)
 
-  // Sync local state when story prop changes (e.g. after add)
-  useEffect(() => {
-    setLocalTask(story.storyTask)
-    setLocalDescription(story.description ?? '')
-    setLocalAssumptions(story.assumptions ?? '')
-    setLocalDeliverables(story.deliverables ?? '')
-    setLocalLow(story.estimateLow !== null ? String(story.estimateLow) : '')
-    setLocalHigh(story.estimateHigh !== null ? String(story.estimateHigh) : '')
-    setLocalMean(story.estimateMean !== null ? String(story.estimateMean) : '')
-    setMeanManual(false)
-  }, [story.id])
-
   // Team member hour local state
   const [localHours, setLocalHours] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {}
@@ -117,19 +105,6 @@ export function StoryRowItem({
     })
     return init
   })
-
-  // Keep localHours in sync if teamMembers or staffingAllocations change
-  useEffect(() => {
-    setLocalHours((prev) => {
-      const next: Record<string, string> = {}
-      teamMembers.forEach((tm) => {
-        const alloc = story.staffingAllocations.find((a) => a.teamMemberId === tm.id)
-        // Only reset if the column is new (not yet tracked) to avoid overwriting user input
-        next[tm.id] = prev[tm.id] !== undefined ? prev[tm.id] : (alloc ? String(alloc.hours) : '0')
-      })
-      return next
-    })
-  }, [teamMembers, story.staffingAllocations])
 
   const totalStaffing = teamMembers.reduce((sum, tm) => {
     const val = parseFloat(localHours[tm.id] ?? '0')

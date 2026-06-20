@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 
 interface Token {
   id: string
@@ -31,7 +31,7 @@ export function ProfilePage({ userName, userEmail }: ProfilePageProps) {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchTokens = useCallback(async () => {
+  async function fetchTokens() {
     try {
       const res = await fetch('/api/tokens')
       if (!res.ok) throw new Error('Failed to fetch tokens')
@@ -42,11 +42,29 @@ export function ProfilePage({ userName, userEmail }: ProfilePageProps) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }
 
   useEffect(() => {
-    void fetchTokens()
-  }, [fetchTokens])
+    let active = true
+    fetch('/api/tokens')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch tokens')
+        return res.json() as Promise<Token[]>
+      })
+      .then((data) => {
+        if (active) {
+          setTokens(data)
+          setLoading(false)
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setError('Failed to load tokens')
+          setLoading(false)
+        }
+      })
+    return () => { active = false }
+  }, [])
 
   async function handleGenerate() {
     if (!newTokenName.trim()) return
