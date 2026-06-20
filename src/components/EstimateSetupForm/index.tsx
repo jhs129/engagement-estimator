@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { snapToNextMonday } from './dateUtils';
 import { FormField, TextInput, DateInput, TextArea, PercentInput } from './FormField';
-import type { EstimateSetupFormProps } from './types';
+import { SmeList } from './SmeList';
+import type { EstimateSetupFormProps, Project } from './types';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -19,20 +20,26 @@ const sectionHeadingStyle = {
   marginBottom: '16px',
 };
 
-export function EstimateSetupForm({ estimateId, initialData }: EstimateSetupFormProps) {
+const selectStyle: React.CSSProperties = {
+  padding: '8px 10px',
+  border: '1px solid var(--cc-gray-light)',
+  backgroundColor: '#fff',
+  color: 'var(--cc-black)',
+  fontSize: '14px',
+  width: '100%',
+  outline: 'none',
+  fontFamily: 'var(--font-body)',
+  cursor: 'pointer',
+};
+
+export function EstimateSetupForm({ estimateId, initialData, clients, initialProjects }: EstimateSetupFormProps) {
   const [form, setForm] = useState({
     name: initialData.name,
     clientName: initialData.clientName,
     salesOwner: initialData.salesOwner,
+    salesOriginator: initialData.salesOriginator ?? '',
     estimatedStartDate: initialData.estimatedStartDate ?? '',
     projectDescription: initialData.projectDescription ?? '',
-    smeTechnology: initialData.smeTechnology ?? '',
-    smeCreativeUX: initialData.smeCreativeUX ?? '',
-    smeStrategy: initialData.smeStrategy ?? '',
-    smeData: initialData.smeData ?? '',
-    smeMedia: initialData.smeMedia ?? '',
-    smeMarketingAutomation: initialData.smeMarketingAutomation ?? '',
-    smeOther: initialData.smeOther ?? '',
     ratioQAToDev: Math.round(initialData.ratioQAToDev * 100),
     ratioTestCaseAuthoring: Math.round(initialData.ratioTestCaseAuthoring * 100),
     ratioDefectFixing: Math.round(initialData.ratioDefectFixing * 100),
@@ -40,6 +47,12 @@ export function EstimateSetupForm({ estimateId, initialData }: EstimateSetupForm
     ratioUAT: Math.round(initialData.ratioUAT * 100),
     riskPremiumPct: Math.round(initialData.riskPremiumPct * 100),
   });
+
+  const [clientId, setClientId] = useState<string>(initialData.clientId ?? '');
+  const [projectId, setProjectId] = useState<string>(initialData.projectId ?? '');
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const isFirstRender = useRef(true);
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
 
@@ -62,6 +75,29 @@ export function EstimateSetupForm({ estimateId, initialData }: EstimateSetupForm
     [estimateId]
   );
 
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (!clientId) {
+      setProjects([]);
+      setProjectId('');
+      return;
+    }
+    setLoadingProjects(true);
+    fetch(`/api/clients/${clientId}/projects`)
+      .then((r) => r.json())
+      .then((data: Project[]) => {
+        setProjects(data);
+        setLoadingProjects(false);
+      })
+      .catch(() => {
+        setProjects([]);
+        setLoadingProjects(false);
+      });
+  }, [clientId]);
+
   function set<K extends keyof typeof form>(key: K, val: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: val }));
   }
@@ -71,6 +107,19 @@ export function EstimateSetupForm({ estimateId, initialData }: EstimateSetupForm
     const snapped = snapToNextMonday(form.estimatedStartDate);
     setForm((prev) => ({ ...prev, estimatedStartDate: snapped }));
     patch({ estimatedStartDate: snapped ? `${snapped}T00:00:00.000Z` : null });
+  }
+
+  function handleClientChange(newClientId: string) {
+    const selected = clients.find((c) => c.id === newClientId);
+    setClientId(newClientId);
+    setProjectId('');
+    setForm((prev) => ({ ...prev, clientName: selected?.name ?? '' }));
+    void patch({ clientId: newClientId || null, clientName: selected?.name ?? '' });
+  }
+
+  function handleProjectChange(newProjectId: string) {
+    setProjectId(newProjectId);
+    void patch({ projectId: newProjectId || null });
   }
 
   return (
@@ -92,16 +141,54 @@ export function EstimateSetupForm({ estimateId, initialData }: EstimateSetupForm
       <section className="mb-10">
         <p style={sectionHeadingStyle}>Deal Information</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormField label="Client Name" required>
-            <TextInput
-              value={form.clientName}
-              onChange={(v) => set('clientName', v)}
-              onBlur={() => patch({ clientName: form.clientName })}
-              placeholder="Client name"
-              required
-            />
+          <FormField label="Client" required>
+            {clients.length === 0 ? (
+              <p className="text-xs py-2" style={{ color: 'var(--cc-gray-mid)' }}>
+                No clients —{' '}
+                <a
+                  href="/admin/clients/new"
+                  style={{ color: 'var(--cc-burnt-sienna)', textDecoration: 'underline' }}
+                >
+                  create one first
+                </a>.
+              </p>
+            ) : (
+              <select
+                value={clientId}
+                onChange={(e) => handleClientChange(e.target.value)}
+                style={selectStyle}
+              >
+                <option value="">Select a client…</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
           </FormField>
-          <FormField label="Project / Engagement Name" required>
+          <FormField label="Project">
+            <select
+              value={projectId}
+              disabled={!clientId || loadingProjects}
+              onChange={(e) => handleProjectChange(e.target.value)}
+              style={{
+                ...selectStyle,
+                opacity: !clientId || loadingProjects ? 0.6 : 1,
+                cursor: !clientId || loadingProjects ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <option value="">
+                {!clientId
+                  ? 'Select a client first…'
+                  : loadingProjects
+                  ? 'Loading projects…'
+                  : 'Select a project…'}
+              </option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label="Estimate Name" required>
             <TextInput
               value={form.name}
               onChange={(v) => set('name', v)}
@@ -110,12 +197,20 @@ export function EstimateSetupForm({ estimateId, initialData }: EstimateSetupForm
               required
             />
           </FormField>
-          <FormField label="Sales Owner">
+          <FormField label="Sales Closer">
             <TextInput
               value={form.salesOwner}
               onChange={(v) => set('salesOwner', v)}
               onBlur={() => patch({ salesOwner: form.salesOwner })}
-              placeholder="Sales owner"
+              placeholder="Sales closer"
+            />
+          </FormField>
+          <FormField label="Sales Originator">
+            <TextInput
+              value={form.salesOriginator}
+              onChange={(v) => set('salesOriginator', v)}
+              onBlur={() => patch({ salesOriginator: form.salesOriginator || null })}
+              placeholder="Sales originator"
             />
           </FormField>
           <FormField label="Estimated Start Date">
@@ -142,31 +237,10 @@ export function EstimateSetupForm({ estimateId, initialData }: EstimateSetupForm
         </FormField>
       </section>
 
-      {/* SME */}
+      {/* SMEs */}
       <section className="mb-10">
-        <p style={sectionHeadingStyle}>Subject Matter Experts (SME)</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(
-            [
-              ['smeTechnology', 'Technology'],
-              ['smeCreativeUX', 'Creative / UX'],
-              ['smeStrategy', 'Strategy'],
-              ['smeData', 'Data'],
-              ['smeMedia', 'Media'],
-              ['smeMarketingAutomation', 'Marketing Automation'],
-              ['smeOther', 'Other'],
-            ] as const
-          ).map(([key, label]) => (
-            <FormField key={key} label={label}>
-              <TextInput
-                value={form[key]}
-                onChange={(v) => set(key, v)}
-                onBlur={() => patch({ [key]: form[key] || null })}
-                placeholder={label}
-              />
-            </FormField>
-          ))}
-        </div>
+        <p style={sectionHeadingStyle}>Subject Matter Experts</p>
+        <SmeList estimateId={estimateId} initialSmes={initialData.smes} />
       </section>
 
       {/* QA Ratios */}

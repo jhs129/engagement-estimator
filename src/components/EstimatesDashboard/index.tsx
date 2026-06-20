@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { NewEstimateButton } from './NewEstimateButton';
 import { DeleteEstimateButton } from './DeleteEstimateButton';
-import { AdminLink } from './AdminLink';
 
 interface Estimate {
   id: string;
@@ -41,14 +40,6 @@ export function EstimatesDashboard({ estimates }: EstimatesDashboardProps) {
           Estimates
         </h1>
         <div className="flex items-center gap-4">
-          <AdminLink />
-          <Link
-            href="/profile"
-            className="text-sm font-medium transition-opacity hover:opacity-70"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--cc-gray-mid)' }}
-          >
-            Profile
-          </Link>
           <NewEstimateButton />
         </div>
       </div>
@@ -124,14 +115,13 @@ export function EstimatesDashboard({ estimates }: EstimatesDashboardProps) {
           </table>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-32 gap-6">
+        <div className="flex items-center justify-center py-32">
           <p
             className="text-lg"
             style={{ color: 'var(--cc-gray-mid)', fontFamily: 'var(--font-display)' }}
           >
-            No estimates yet. Create your first estimate.
+            No estimates yet. Use the button above to create your first.
           </p>
-          <NewEstimateButton />
         </div>
       )}
     </main>

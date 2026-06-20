@@ -288,7 +288,10 @@ export function StoriesGrid({
     exportStoriesToCsv(stories, epics, teamMembers, estimateId)
   }, [stories, epics, teamMembers, estimateId])
 
-  const teamMemberAbbreviations = teamMembers.map((tm) => tm.abbreviation)
+  const teamMemberAbbreviations = useMemo(
+    () => teamMembers.map((tm) => tm.abbreviation),
+    [teamMembers]
+  )
 
   const handleImport = useCallback(
     async (parsedRows: Array<Record<string, string>>, mode: 'merge' | 'replace') => {

@@ -38,11 +38,23 @@ export function EstimateNav({ estimateId, estimateName }: EstimateNavProps) {
         borderBottom: '1px solid var(--cc-gray-light)',
       }}
     >
-      <div className="px-8">
-        <div className="flex items-center gap-8">
+      <div className="px-6">
+        <div className="flex items-center gap-6">
+          {/* Back to estimates */}
+          <Link
+            href="/"
+            className="shrink-0 flex items-center gap-1 text-xs font-semibold uppercase tracking-widest transition-opacity hover:opacity-60 whitespace-nowrap"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--cc-gray-mid)' }}
+          >
+            ← All Estimates
+          </Link>
+
+          {/* Divider */}
+          <span style={{ color: 'var(--cc-gray-light)', userSelect: 'none' }}>|</span>
+
           {/* Estimate name */}
           <span
-            className="py-4 text-sm font-medium shrink-0"
+            className="py-4 text-sm font-medium shrink-0 truncate max-w-xs"
             style={{
               fontFamily: 'var(--font-display)',
               color: 'var(--cc-black)',

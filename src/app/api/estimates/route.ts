@@ -47,6 +47,8 @@ export async function POST(request: Request) {
       name: data.name,
       clientName: data.clientName,
       salesOwner: data.salesOwner,
+      ...(data.clientId && { clientId: data.clientId }),
+      ...(data.projectId && { projectId: data.projectId }),
       estimatedStartDate: data.estimatedStartDate ? new Date(data.estimatedStartDate) : undefined,
       projectDescription: data.projectDescription,
       version: data.version,

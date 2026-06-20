@@ -134,11 +134,36 @@ model OAuthConsent {
 
 // Engagement Estimator models
 
+model Client {
+  id        String     @id @default(cuid())
+  name      String
+  logoUrl   String     @default("")
+  createdAt DateTime   @default(now())
+  projects  Project[]
+  estimates Estimate[]
+}
+
+model Project {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String     @default("")
+  clientId    String
+  client      Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+  estimates   Estimate[]
+}
+
 model Estimate {
   id                     String   @id @default(cuid())
   name                   String
   clientName             String
   salesOwner             String
+  salesOriginator        String?
+  clientId               String?
+  client                 Client?  @relation(fields: [clientId], references: [id])
+  projectId              String?
+  project                Project? @relation(fields: [projectId], references: [id])
   estimatedStartDate     DateTime?
   projectDescription     String?
   version                Float    @default(4.0)
@@ -167,6 +192,18 @@ model Estimate {
   teamMembers TeamMember[]
   epics       Epic[]
   stories     Story[]
+  smes        EstimateSme[]
+}
+
+model EstimateSme {
+  id         String   @id @default(cuid())
+  estimateId String
+  estimate   Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  name       String
+  domain     String?
+  order      Int
+
+  @@index([estimateId])
 }
 
 model LaborRole {
