@@ -4,6 +4,8 @@ import { useState, useCallback } from 'react'
 import type { EpicRow, EpicsGridProps, SaveState } from './types'
 import { EpicRowItem } from './EpicRowItem'
 import { exportEpicsToCsv } from './csvExport'
+import { CsvImportModal } from '@/components/CsvImportModal'
+import { parseEpicsImport } from '@/lib/csv/import'
 
 let localIdCounter = 0
 function nextLocalId(): string {
@@ -18,6 +20,7 @@ const COLUMNS = ['#', 'Epic Name', 'Description', 'Story Hours', 'Foundation Hou
 export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
   const [rows, setRows] = useState<EpicRow[]>(initialRows)
   const [rowSaveStates, setRowSaveStates] = useState<RowSaveState>({})
+  const [importModalOpen, setImportModalOpen] = useState(false)
 
   const setRowSaveState = useCallback((id: string, state: SaveState) => {
     setRowSaveStates((prev) => ({ ...prev, [id]: state }))
@@ -139,20 +142,103 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
     exportEpicsToCsv(rows, estimateId)
   }, [rows, estimateId])
 
+  const handleImport = useCallback(
+    async (parsedRows: Array<Record<string, string>>, mode: 'merge' | 'replace') => {
+      const parsed = parseEpicsImport(parsedRows)
+      if (parsed.errors.length > 0) return
+
+      if (mode === 'replace') {
+        // Only delete non-foundation epics
+        const nonFoundationIds = rows
+          .filter((r) => !r.isFoundation && !r.id.startsWith('local-'))
+          .map((r) => r.id)
+        await Promise.all(
+          nonFoundationIds.map((id) =>
+            fetch(`/api/estimates/${estimateId}/epics/${id}`, { method: 'DELETE' })
+          )
+        )
+        setRows((prev) => prev.filter((r) => r.isFoundation))
+      }
+
+      const created: EpicRow[] = []
+      for (let i = 0; i < parsed.rows.length; i++) {
+        const row = parsed.rows[i]
+        const res = await fetch(`/api/estimates/${estimateId}/epics`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: row.name,
+            description: row.description || null,
+            isFoundation: false,
+            order: rows.filter((r) => !r.isFoundation).length + created.length + i,
+          }),
+        })
+        if (res.ok) {
+          const newEpic: EpicRow = await res.json()
+          created.push({
+            ...newEpic,
+            storyHours: 0,
+            foundationHours: 0,
+            totalHours: 0,
+            percent: 0,
+          })
+        }
+      }
+
+      if (mode === 'replace') {
+        setRows((prev) => [...prev, ...created])
+      } else {
+        setRows((prev) => [...prev, ...created])
+      }
+    },
+    [estimateId, rows]
+  )
+
+  const getValidationErrors = useCallback((parsedRows: Array<Record<string, string>>) => {
+    return parseEpicsImport(parsedRows).errors
+  }, [])
+
   const totalStoryHours = rows.reduce((sum, r) => sum + r.storyHours, 0)
   const totalFoundationHours = rows.reduce((sum, r) => sum + r.foundationHours, 0)
   const totalHours = rows.reduce((sum, r) => sum + r.totalHours, 0)
 
   return (
     <div style={{ padding: '24px 32px' }}>
+      <CsvImportModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImport={handleImport}
+        tabLabel="Epics"
+        expectedColumns={['EpicName', 'Description']}
+        getValidationErrors={getValidationErrors}
+      />
+
       {/* Toolbar */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'flex-end',
+          gap: '8px',
           marginBottom: '16px',
         }}
       >
+        <button
+          onClick={() => setImportModalOpen(true)}
+          style={{
+            padding: '7px 16px',
+            fontFamily: 'var(--font-display)',
+            fontSize: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            background: 'none',
+            border: '1px solid var(--cc-gray-light)',
+            cursor: 'pointer',
+            color: 'var(--cc-black)',
+          }}
+        >
+          Import CSV
+        </button>
         <button
           onClick={handleExport}
           style={{

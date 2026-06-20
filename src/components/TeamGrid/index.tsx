@@ -4,6 +4,8 @@ import { useState, useCallback } from 'react'
 import type { TeamMemberRow, TeamGridProps, SaveState } from './types'
 import { TeamRowItem } from './TeamRowItem'
 import { exportTeamToCsv } from './csvExport'
+import { CsvImportModal } from '@/components/CsvImportModal'
+import { parseTeamImport } from '@/lib/csv/import'
 
 const MAX_TEAM_MEMBERS = 20
 
@@ -18,6 +20,7 @@ type RowSaveState = Record<string, SaveState>
 export function TeamGrid({ estimateId, initialRows, laborRoles }: TeamGridProps) {
   const [rows, setRows] = useState<TeamMemberRow[]>(initialRows)
   const [rowSaveStates, setRowSaveStates] = useState<RowSaveState>({})
+  const [importModalOpen, setImportModalOpen] = useState(false)
 
   const setRowSaveState = useCallback((id: string, state: SaveState) => {
     setRowSaveStates((prev) => ({ ...prev, [id]: state }))
@@ -146,18 +149,103 @@ export function TeamGrid({ estimateId, initialRows, laborRoles }: TeamGridProps)
     exportTeamToCsv(rows, laborRoles, estimateId)
   }, [rows, laborRoles, estimateId])
 
+  const handleImport = useCallback(
+    async (parsedRows: Array<Record<string, string>>, mode: 'merge' | 'replace') => {
+      const parsed = parseTeamImport(parsedRows)
+      if (parsed.errors.length > 0) return
+
+      if (mode === 'replace') {
+        const existingIds = rows.filter((r) => !r.id.startsWith('local-team-')).map((r) => r.id)
+        await Promise.all(
+          existingIds.map((id) =>
+            fetch(`/api/estimates/${estimateId}/team/${id}`, { method: 'DELETE' })
+          )
+        )
+        setRows([])
+      }
+
+      const created: TeamMemberRow[] = []
+      for (let i = 0; i < parsed.rows.length; i++) {
+        const row = parsed.rows[i]
+        const currentRows = mode === 'replace' ? created : [...rows, ...created]
+        const res = await fetch(`/api/estimates/${estimateId}/team`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            titleOverride: row.titleOverride || null,
+            abbreviationOverride: row.abbreviationOverride || null,
+            targetedResource: row.targetedResource || null,
+            order: currentRows.length + i,
+          }),
+        })
+        if (res.ok) {
+          const data: TeamMemberRow & { laborRole?: { id: string; fullTitle: string } } = await res.json()
+          created.push({
+            id: data.id,
+            laborRoleId: data.laborRoleId,
+            laborRoleName: data.laborRole?.fullTitle ?? null,
+            titleOverride: data.titleOverride,
+            abbreviationOverride: data.abbreviationOverride,
+            rackRateOverride: data.rackRateOverride,
+            adjustedClientRate: data.adjustedClientRate,
+            targetedResource: data.targetedResource,
+            order: data.order,
+          })
+        }
+      }
+
+      if (mode === 'replace') {
+        setRows(created)
+      } else {
+        setRows((prev) => [...prev, ...created])
+      }
+    },
+    [estimateId, rows]
+  )
+
+  const getValidationErrors = useCallback((parsedRows: Array<Record<string, string>>) => {
+    return parseTeamImport(parsedRows).errors
+  }, [])
+
   const atLimit = rows.length >= MAX_TEAM_MEMBERS
 
   return (
     <div style={{ padding: '24px 32px' }}>
+      <CsvImportModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImport={handleImport}
+        tabLabel="Team"
+        expectedColumns={['Title', 'AbbreviationOverride', 'TargetedResource']}
+        getValidationErrors={getValidationErrors}
+      />
+
       {/* Toolbar */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'flex-end',
+          gap: '8px',
           marginBottom: '16px',
         }}
       >
+        <button
+          onClick={() => setImportModalOpen(true)}
+          style={{
+            padding: '7px 16px',
+            fontFamily: 'var(--font-display)',
+            fontSize: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            background: 'none',
+            border: '1px solid var(--cc-gray-light)',
+            cursor: 'pointer',
+            color: 'var(--cc-black)',
+          }}
+        >
+          Import CSV
+        </button>
         <button
           onClick={handleExport}
           style={{

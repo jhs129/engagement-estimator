@@ -4,6 +4,8 @@ import { useState, useCallback } from 'react'
 import type { QuestionRow, QuestionsGridProps, SaveState } from './types'
 import { QuestionRowItem } from './QuestionRowItem'
 import { exportQuestionsToCsv } from './csvExport'
+import { CsvImportModal } from '@/components/CsvImportModal'
+import { parseQuestionsImport } from '@/lib/csv/import'
 
 let localIdCounter = 0
 function nextLocalId(): string {
@@ -16,6 +18,7 @@ type RowSaveState = Record<string, SaveState>
 export function QuestionsGrid({ estimateId, initialRows }: QuestionsGridProps) {
   const [rows, setRows] = useState<QuestionRow[]>(initialRows)
   const [rowSaveStates, setRowSaveStates] = useState<RowSaveState>({})
+  const [importModalOpen, setImportModalOpen] = useState(false)
 
   const setRowSaveState = useCallback((id: string, state: SaveState) => {
     setRowSaveStates((prev) => ({ ...prev, [id]: state }))
@@ -121,16 +124,91 @@ export function QuestionsGrid({ estimateId, initialRows }: QuestionsGridProps) {
     exportQuestionsToCsv(rows, estimateId)
   }, [rows, estimateId])
 
+  const handleImport = useCallback(
+    async (parsedRows: Array<Record<string, string>>, mode: 'merge' | 'replace') => {
+      const parsed = parseQuestionsImport(parsedRows)
+      if (parsed.errors.length > 0) return
+
+      if (mode === 'replace') {
+        const existingIds = rows.filter((r) => !r.id.startsWith('local-')).map((r) => r.id)
+        await Promise.all(
+          existingIds.map((id) =>
+            fetch(`/api/estimates/${estimateId}/questions/${id}`, { method: 'DELETE' })
+          )
+        )
+        setRows([])
+      }
+
+      const created: QuestionRow[] = []
+      for (let i = 0; i < parsed.rows.length; i++) {
+        const row = parsed.rows[i]
+        const currentRows = mode === 'replace' ? created : [...rows, ...created]
+        const res = await fetch(`/api/estimates/${estimateId}/questions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: row.type,
+            description: row.description,
+            notes: row.notes || null,
+            order: currentRows.length + i,
+          }),
+        })
+        if (res.ok) {
+          const newRow: QuestionRow = await res.json()
+          created.push(newRow)
+        }
+      }
+
+      if (mode === 'replace') {
+        setRows(created)
+      } else {
+        setRows((prev) => [...prev, ...created])
+      }
+    },
+    [estimateId, rows]
+  )
+
+  const getValidationErrors = useCallback((parsedRows: Array<Record<string, string>>) => {
+    return parseQuestionsImport(parsedRows).errors
+  }, [])
+
   return (
     <div style={{ padding: '24px 32px' }}>
+      <CsvImportModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImport={handleImport}
+        tabLabel="Questions"
+        expectedColumns={['Type', 'Description', 'Notes/Answers']}
+        getValidationErrors={getValidationErrors}
+      />
+
       {/* Toolbar */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'flex-end',
+          gap: '8px',
           marginBottom: '16px',
         }}
       >
+        <button
+          onClick={() => setImportModalOpen(true)}
+          style={{
+            padding: '7px 16px',
+            fontFamily: 'var(--font-display)',
+            fontSize: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            background: 'none',
+            border: '1px solid var(--cc-gray-light)',
+            cursor: 'pointer',
+            color: 'var(--cc-black)',
+          }}
+        >
+          Import CSV
+        </button>
         <button
           onClick={handleExport}
           style={{

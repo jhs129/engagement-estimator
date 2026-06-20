@@ -5,6 +5,8 @@ import type { StoryRow, EpicGroup, TeamMemberCol, StoriesGridProps } from './typ
 import { StoryRowItem } from './StoryRowItem'
 import { EpicGroupHeader } from './EpicGroupHeader'
 import { exportStoriesToCsv } from './csvExport'
+import { CsvImportModal } from '@/components/CsvImportModal'
+import { parseStoriesImport } from '@/lib/csv/import'
 
 let localIdCounter = 0
 function nextLocalId(): string {
@@ -43,6 +45,7 @@ export function StoriesGrid({
   teamMembers,
 }: StoriesGridProps) {
   const [stories, setStories] = useState<StoryRow[]>(initialStories)
+  const [importModalOpen, setImportModalOpen] = useState(false)
 
   // Group stories by epic, ordered by epic list order, then story.order within group
   const epicOrder: Record<string, number> = {}
@@ -284,6 +287,100 @@ export function StoriesGrid({
     exportStoriesToCsv(stories, epics, teamMembers, estimateId)
   }, [stories, epics, teamMembers, estimateId])
 
+  const teamMemberAbbreviations = teamMembers.map((tm) => tm.abbreviation)
+
+  const handleImport = useCallback(
+    async (parsedRows: Array<Record<string, string>>, mode: 'merge' | 'replace') => {
+      const parsed = parseStoriesImport(parsedRows, teamMemberAbbreviations)
+      if (parsed.errors.length > 0) return
+
+      if (mode === 'replace') {
+        const existingIds = stories.filter((s) => !s.id.startsWith('local-')).map((s) => s.id)
+        await Promise.all(
+          existingIds.map((id) =>
+            fetch(`/api/estimates/${estimateId}/stories/${id}`, { method: 'DELETE' })
+          )
+        )
+        setStories([])
+      }
+
+      const created: StoryRow[] = []
+      for (let i = 0; i < parsed.rows.length; i++) {
+        const row = parsed.rows[i]
+
+        // Match epic by name (case-insensitive)
+        const epic = epics.find(
+          (e) => e.name.toLowerCase() === row.epicName.toLowerCase()
+        )
+        if (!epic) continue
+
+        const epicStories = (mode === 'replace' ? created : [...stories, ...created]).filter(
+          (s) => s.epicId === epic.id
+        )
+
+        const res = await fetch(`/api/estimates/${estimateId}/stories`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            epicId: epic.id,
+            storyTask: row.storyTask,
+            description: row.description || null,
+            assumptions: row.assumptions || null,
+            deliverables: row.deliverables || null,
+            disabled: row.disabled,
+            testable: row.testable,
+            estimateLow: row.estimateLow,
+            estimateHigh: row.estimateHigh,
+            estimateMean: row.estimateMean,
+            order: epicStories.length,
+          }),
+        })
+        if (!res.ok) continue
+
+        const newStory: StoryRow = await res.json()
+        newStory.staffingAllocations = newStory.staffingAllocations ?? []
+
+        // PUT staffing allocations for team member hours
+        const allocations = Object.entries(row.teamMemberHours)
+          .map(([abbr, hours]) => {
+            const tm = teamMembers.find((t) => t.abbreviation === abbr)
+            return tm ? { teamMemberId: tm.id, hours } : null
+          })
+          .filter((a): a is { teamMemberId: string; hours: number } => a !== null)
+
+        if (allocations.length > 0) {
+          const staffRes = await fetch(
+            `/api/estimates/${estimateId}/stories/${newStory.id}/staffing`,
+            {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ allocations }),
+            }
+          )
+          if (staffRes.ok) {
+            newStory.staffingAllocations = allocations
+          }
+        }
+
+        created.push(newStory)
+      }
+
+      if (mode === 'replace') {
+        setStories(created)
+      } else {
+        setStories((prev) => [...prev, ...created])
+      }
+    },
+    [estimateId, stories, epics, teamMembers, teamMemberAbbreviations]
+  )
+
+  const getValidationErrors = useCallback(
+    (parsedRows: Array<Record<string, string>>) => {
+      return parseStoriesImport(parsedRows, teamMemberAbbreviations).errors
+    },
+    [teamMemberAbbreviations]
+  )
+
   // Grand totals for footer
   const grandMean = stories
     .filter((s) => !s.disabled)
@@ -315,8 +412,35 @@ export function StoriesGrid({
 
   return (
     <div style={{ padding: '24px 32px' }}>
+      <CsvImportModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImport={handleImport}
+        tabLabel="Stories"
+        expectedColumns={['EpicName', 'StoryTask', 'Description', 'Assumptions', 'Deliverables', 'Disabled', 'Testable', 'Low', 'High', 'Mean', '…team abbreviations']}
+        teamMemberAbbreviations={teamMemberAbbreviations}
+        getValidationErrors={getValidationErrors}
+      />
+
       {/* Toolbar */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: '16px' }}>
+        <button
+          onClick={() => setImportModalOpen(true)}
+          style={{
+            padding: '7px 16px',
+            fontFamily: 'var(--font-display)',
+            fontSize: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            background: 'none',
+            border: '1px solid var(--cc-gray-light)',
+            cursor: 'pointer',
+            color: 'var(--cc-black)',
+          }}
+        >
+          Import CSV
+        </button>
         <button
           onClick={handleExport}
           style={{
