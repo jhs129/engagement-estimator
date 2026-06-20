@@ -21,13 +21,7 @@ const laborRoles = [
 ]
 
 async function main() {
-  for (const role of laborRoles) {
-    await prisma.laborRole.upsert({
-      where: { id: role.abbreviation },
-      update: role,
-      create: role,
-    })
-  }
+  await prisma.laborRole.createMany({ data: laborRoles })
 }
 
 main()

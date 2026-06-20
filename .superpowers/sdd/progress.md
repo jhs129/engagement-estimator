@@ -23,13 +23,13 @@ To resume this work in a new session:
 
 ## Tasks
 
-- [ ] Phase 1: Project Scaffolding & Auth — brief at `.superpowers/sdd/phase1-brief.md` — READY TO DISPATCH
-- [ ] Phase 2: Data Model & API Foundation
-- [ ] Phase 3: Estimates Dashboard + Setup Tab
-- [ ] Phase 4: Questions & Team Tabs
-- [ ] Phase 5: Epics Tab
-- [ ] Phase 6: Stories Tab
-- [ ] Phase 7: Staffing Plan Tab
+- [x] Phase 1: Project Scaffolding & Auth — commits `db0041a`, `110cdfe`
+- [x] Phase 2: Data Model & API Foundation — commit `5be0a89`. 29/29 tests. Build PASSED.
+- [x] Phase 3: Estimates Dashboard + Setup Tab — commit `cabf1ab`. Build PASSED.
+- [x] Phase 4: Questions & Team Tabs — commit `bd58d80`. Build PASSED.
+- [x] Phase 5: Epics Tab — commit `0ceda39`. Build PASSED.
+- [x] Phase 6: Stories Tab — commit `e0f92ab`. Build PASSED.
+- [ ] Phase 7: Staffing Plan Tab — brief at `.superpowers/sdd/phase7-brief.md` — READY TO DISPATCH
 - [ ] Phase 8: Client Investment Tab
 - [ ] Phase 9: CSV Import
 - [ ] Phase 10: MCP Server
@@ -37,7 +37,9 @@ To resume this work in a new session:
 
 ## Completed Tasks
 
-(none yet)
+- Phase 1: Project Scaffolding & Auth — commits `db0041a` (feat), `110cdfe` (fixes). Build PASSED.
+- Phase 2: Data Model & API Foundation — commit `5be0a89`. 29/29 tests. Build PASSED.
+- Phase 3: Estimates Dashboard + Setup Tab — commit `cabf1ab`. Build PASSED.
 
 ## Minor Findings to Address at Final Review
 
