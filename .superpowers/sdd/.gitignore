@@ -1,0 +1,5 @@
+# Ignore auto-generated review packages but keep briefs, reports, and ledger
+review-package-*.diff
+!progress.md
+!phase*.md
+!task*.md
