@@ -1,6 +1,15 @@
 import { PrismaClient } from '@prisma/client'
+import { PrismaNeon } from '@prisma/adapter-neon'
+import * as dotenv from 'dotenv'
 
-const prisma = new PrismaClient()
+dotenv.config({ path: '.env.local' })
+dotenv.config()
+
+const connectionString = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL
+if (!connectionString) throw new Error('DATABASE_URL is not set')
+
+const adapter = new PrismaNeon({ connectionString })
+const prisma = new PrismaClient({ adapter })
 
 const laborRoles = [
   { fullTitle: 'Project Management - Project Manager', division: 'Delivery Management', department: 'Delivery Management', role: 'Project Manager', rackRate: 200, abbreviation: 'PM' },
