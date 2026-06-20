@@ -39,7 +39,16 @@ export function EstimatesDashboard({ estimates }: EstimatesDashboardProps) {
         >
           Estimates
         </h1>
-        <NewEstimateButton />
+        <div className="flex items-center gap-4">
+          <Link
+            href="/profile"
+            className="text-sm font-medium transition-opacity hover:opacity-70"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--cc-gray-mid)' }}
+          >
+            Profile
+          </Link>
+          <NewEstimateButton />
+        </div>
       </div>
 
       {hasEstimates ? (
