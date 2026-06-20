@@ -29,9 +29,9 @@ To resume this work in a new session:
 - [x] Phase 4: Questions & Team Tabs — commit `bd58d80`. Build PASSED.
 - [x] Phase 5: Epics Tab — commit `0ceda39`. Build PASSED.
 - [x] Phase 6: Stories Tab — commit `e0f92ab`. Build PASSED.
-- [ ] Phase 7: Staffing Plan Tab — brief at `.superpowers/sdd/phase7-brief.md` — READY TO DISPATCH
-- [ ] Phase 8: Client Investment Tab
-- [ ] Phase 9: CSV Import
+- [x] Phase 7: Staffing Plan Tab — commit `2d0efbc`. Build PASSED.
+- [x] Phase 8: Client Investment Tab — commit `2245e8d`. Build PASSED.
+- [x] Phase 9: CSV Import — commit `c341b81`. Build PASSED.
 - [ ] Phase 10: MCP Server
 - [ ] Phase 11: Polish & Production
 
