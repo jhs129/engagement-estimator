@@ -44,7 +44,7 @@ export function AdminLink() {
           {[
             { href: '/admin/clients', label: 'Clients' },
             { href: '/admin/projects', label: 'Projects' },
-            { href: '/admin/labor-roles', label: 'Labor Rates' },
+            { href: '/admin/labor-roles', label: 'Standard Labor' },
           ].map(({ href, label }) => (
             <Link
               key={href}

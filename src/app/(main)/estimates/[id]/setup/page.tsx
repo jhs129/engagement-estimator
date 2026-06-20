@@ -1,21 +1,24 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { EstimateSetupForm } from '@/components/EstimateSetupForm';
-import type { EstimateSetupFormData } from '@/components/EstimateSetupForm/types';
+import type { EstimateSetupFormData, Client, Project } from '@/components/EstimateSetupForm/types';
+
+interface FetchResult {
+  data: EstimateSetupFormData;
+  clients: Client[];
+  initialProjects: Project[];
+}
 
 const DEFAULT_FORM_DATA: EstimateSetupFormData = {
   name: 'New Estimate',
   clientName: '',
+  clientId: null,
+  projectId: null,
   salesOwner: '',
+  salesOriginator: null,
   estimatedStartDate: null,
   projectDescription: null,
-  smeTechnology: null,
-  smeCreativeUX: null,
-  smeStrategy: null,
-  smeData: null,
-  smeMedia: null,
-  smeMarketingAutomation: null,
-  smeOther: null,
+  smes: [],
   ratioQAToDev: 0.2,
   ratioTestCaseAuthoring: 0.1,
   ratioDefectFixing: 0.25,
@@ -25,7 +28,7 @@ const DEFAULT_FORM_DATA: EstimateSetupFormData = {
   version: 1,
 };
 
-async function fetchEstimate(id: string): Promise<EstimateSetupFormData | null> {
+async function fetchEstimate(id: string): Promise<FetchResult | null> {
   try {
     const { prisma } = await import('@/lib/prisma');
     const { getAuthedUser } = await import('@/lib/api-auth');
@@ -39,16 +42,13 @@ async function fetchEstimate(id: string): Promise<EstimateSetupFormData | null> 
         id: true,
         name: true,
         clientName: true,
+        clientId: true,
+        projectId: true,
         salesOwner: true,
+        salesOriginator: true,
         estimatedStartDate: true,
         projectDescription: true,
-        smeTechnology: true,
-        smeCreativeUX: true,
-        smeStrategy: true,
-        smeData: true,
-        smeMedia: true,
-        smeMarketingAutomation: true,
-        smeOther: true,
+        smes: { orderBy: { order: 'asc' as const } },
         ratioQAToDev: true,
         ratioTestCaseAuthoring: true,
         ratioDefectFixing: true,
@@ -63,28 +63,43 @@ async function fetchEstimate(id: string): Promise<EstimateSetupFormData | null> 
     if (!estimate) return null;
     if (estimate.createdById !== user.id && user.role !== 'ADMIN') return null;
 
+    const [clients, initialProjects] = await Promise.all([
+      prisma.client.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true },
+      }),
+      estimate.clientId
+        ? prisma.project.findMany({
+            where: { clientId: estimate.clientId },
+            orderBy: { name: 'asc' },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
     return {
-      name: estimate.name,
-      clientName: estimate.clientName,
-      salesOwner: estimate.salesOwner,
-      estimatedStartDate: estimate.estimatedStartDate
-        ? estimate.estimatedStartDate.toISOString().split('T')[0]
-        : null,
-      projectDescription: estimate.projectDescription,
-      smeTechnology: estimate.smeTechnology,
-      smeCreativeUX: estimate.smeCreativeUX,
-      smeStrategy: estimate.smeStrategy,
-      smeData: estimate.smeData,
-      smeMedia: estimate.smeMedia,
-      smeMarketingAutomation: estimate.smeMarketingAutomation,
-      smeOther: estimate.smeOther,
-      ratioQAToDev: estimate.ratioQAToDev,
-      ratioTestCaseAuthoring: estimate.ratioTestCaseAuthoring,
-      ratioDefectFixing: estimate.ratioDefectFixing,
-      ratioAlphaTesting: estimate.ratioAlphaTesting,
-      ratioUAT: estimate.ratioUAT,
-      riskPremiumPct: estimate.riskPremiumPct,
-      version: estimate.version,
+      data: {
+        name: estimate.name,
+        clientName: estimate.clientName,
+        clientId: estimate.clientId,
+        projectId: estimate.projectId,
+        salesOwner: estimate.salesOwner,
+        salesOriginator: estimate.salesOriginator,
+        estimatedStartDate: estimate.estimatedStartDate
+          ? estimate.estimatedStartDate.toISOString().split('T')[0]
+          : null,
+        projectDescription: estimate.projectDescription,
+        smes: estimate.smes,
+        ratioQAToDev: estimate.ratioQAToDev,
+        ratioTestCaseAuthoring: estimate.ratioTestCaseAuthoring,
+        ratioDefectFixing: estimate.ratioDefectFixing,
+        ratioAlphaTesting: estimate.ratioAlphaTesting,
+        ratioUAT: estimate.ratioUAT,
+        riskPremiumPct: estimate.riskPremiumPct,
+        version: estimate.version,
+      },
+      clients,
+      initialProjects,
     };
   } catch {
     return null;
@@ -102,9 +117,11 @@ export default async function SetupPage({
   }
 
   const { id } = await params;
-  const data = await fetchEstimate(id);
-  const dbUnavailable = data === null;
-  const formData = data ?? DEFAULT_FORM_DATA;
+  const result = await fetchEstimate(id);
+  const dbUnavailable = result === null;
+  const formData = result?.data ?? DEFAULT_FORM_DATA;
+  const clients = result?.clients ?? [];
+  const initialProjects = result?.initialProjects ?? [];
 
   return (
     <div>
@@ -120,7 +137,12 @@ export default async function SetupPage({
           Database not configured — connect Neon to save data.
         </div>
       )}
-      <EstimateSetupForm estimateId={id} initialData={formData} />
+      <EstimateSetupForm
+        estimateId={id}
+        initialData={formData}
+        clients={clients}
+        initialProjects={initialProjects}
+      />
     </div>
   );
 }

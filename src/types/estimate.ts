@@ -27,7 +27,10 @@ export const createEstimateSchema = z.object({
 export const updateEstimateSchema = z.object({
   name: z.string().min(1).optional(),
   clientName: z.string().min(1).optional(),
+  clientId: z.string().nullable().optional(),
+  projectId: z.string().nullable().optional(),
   salesOwner: z.string().min(1).optional(),
+  salesOriginator: z.string().nullable().optional(),
   estimatedStartDate: z.string().datetime().nullable().optional(),
   projectDescription: z.string().nullable().optional(),
   version: z.number().optional(),
