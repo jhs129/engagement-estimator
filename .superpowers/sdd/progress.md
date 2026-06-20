@@ -32,8 +32,8 @@ To resume this work in a new session:
 - [x] Phase 7: Staffing Plan Tab — commit `2d0efbc`. Build PASSED.
 - [x] Phase 8: Client Investment Tab — commit `2245e8d`. Build PASSED.
 - [x] Phase 9: CSV Import — commit `c341b81`. Build PASSED.
-- [ ] Phase 10: MCP Server
-- [ ] Phase 11: Polish & Production
+- [x] Phase 10: MCP Server — commit `d877627`. 11 tools, 36 routes. Build PASSED.
+- [x] Phase 11: Polish & Production — commits `6407d56`, `90536cb`. Build PASSED. Lint clean. 29/29 tests.
 
 ## Completed Tasks
 
