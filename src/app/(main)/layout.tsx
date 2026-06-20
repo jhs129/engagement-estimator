@@ -1,6 +1,7 @@
 'use client';
 
 import { SessionProvider } from 'next-auth/react';
+import { AppNav } from '@/components/AppNav';
 
 export default function MainLayout({
   children,
@@ -9,6 +10,7 @@ export default function MainLayout({
 }) {
   return (
     <SessionProvider>
+      <AppNav />
       {children}
     </SessionProvider>
   );
