@@ -4,6 +4,8 @@ export const createEstimateSchema = z.object({
   name: z.string().min(1),
   clientName: z.string().min(1),
   salesOwner: z.string().min(1),
+  clientId: z.string().optional(),
+  projectId: z.string().optional(),
   estimatedStartDate: z.string().datetime().optional(),
   projectDescription: z.string().optional(),
   version: z.number().optional(),
