@@ -5,11 +5,9 @@ import type { EpicRow, SaveState } from './types'
 import {
   GRID_INPUT_STYLE,
   GRID_TD_STYLE,
-  GRID_ROW_STYLE,
-  onGridRowMouseEnter,
-  onGridRowMouseLeave,
   GridDeleteButton,
   GridSaveIndicator,
+  GripIcon,
 } from '@/components/ui/gridShared'
 
 interface EpicRowItemProps {
@@ -19,11 +17,32 @@ interface EpicRowItemProps {
   onDelete: (id: string, name: string) => void
   onAddRow: () => void
   saveState: SaveState
+  onDragStart: (id: string) => void
+  onDragOver: (id: string) => void
+  onDrop: (id: string) => void
+  onDragEnd: () => void
+  isDragging: boolean
+  isDragOver: boolean
 }
 
-export function EpicRowItem({ row, rowNumber, onSave, onDelete, onAddRow, saveState }: EpicRowItemProps) {
+export function EpicRowItem({
+  row,
+  rowNumber,
+  onSave,
+  onDelete,
+  onAddRow,
+  saveState,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  isDragging,
+  isDragOver,
+}: EpicRowItemProps) {
   const [localName, setLocalName] = useState(row.name)
   const [localDescription, setLocalDescription] = useState(row.description ?? '')
+  const [gripHovered, setGripHovered] = useState(false)
+  const [rowHovered, setRowHovered] = useState(false)
 
   const handleNameBlur = useCallback(async () => {
     if (!row.isFoundation && localName !== row.name) {
@@ -42,12 +61,62 @@ export function EpicRowItem({ row, rowNumber, onSave, onDelete, onAddRow, saveSt
     ? { borderLeft: '3px solid var(--cc-gray-mid)' }
     : {}
 
+  const bgColor = isDragging
+    ? '#ffffff'
+    : isDragOver
+    ? '#FFF5F0'
+    : rowHovered
+    ? 'var(--cc-off-white)'
+    : '#ffffff'
+
   return (
     <tr
-      style={{ ...GRID_ROW_STYLE, ...foundationBorderStyle }}
-      onMouseEnter={onGridRowMouseEnter}
-      onMouseLeave={onGridRowMouseLeave}
+      draggable={gripHovered && !row.isFoundation}
+      onDragStart={(e) => {
+        if (row.isFoundation) return
+        e.dataTransfer.effectAllowed = 'move'
+        onDragStart(row.id)
+      }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        onDragOver(row.id)
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        onDrop(row.id)
+      }}
+      onDragEnd={onDragEnd}
+      onMouseEnter={() => setRowHovered(true)}
+      onMouseLeave={() => setRowHovered(false)}
+      style={{
+        ...foundationBorderStyle,
+        backgroundColor: bgColor,
+        borderBottom: '1px solid var(--cc-gray-light)',
+        transition: isDragging ? 'none' : 'background-color 0.1s',
+        opacity: isDragging ? 0.4 : 1,
+        outline: isDragOver && !isDragging ? '2px solid var(--cc-burnt-sienna)' : 'none',
+        outlineOffset: '-2px',
+      }}
     >
+      {/* Drag handle */}
+      <td
+        onPointerEnter={() => setGripHovered(true)}
+        onPointerLeave={() => setGripHovered(false)}
+        style={{
+          padding: '10px 12px',
+          width: '36px',
+          textAlign: 'center',
+          borderRight: '1px solid var(--cc-gray-light)',
+          cursor: row.isFoundation ? 'default' : 'grab',
+          color: rowHovered && !row.isFoundation ? 'var(--cc-gray-mid)' : 'var(--cc-gray-light)',
+          userSelect: 'none',
+        }}
+        title={row.isFoundation ? undefined : 'Drag to reorder'}
+      >
+        {!row.isFoundation && <GripIcon />}
+      </td>
+
       {/* # */}
       <td
         style={{

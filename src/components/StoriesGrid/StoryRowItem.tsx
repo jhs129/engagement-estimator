@@ -1,16 +1,27 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { StoryRow, EpicGroup, TeamMemberCol } from './types'
 import { calculateBalanceCheck } from './balanceCheck'
 import {
   GRID_INPUT_STYLE,
   GRID_NUM_INPUT_STYLE,
-  GRID_ROW_STYLE,
-  onGridRowMouseEnter,
-  onGridRowMouseLeave,
   GridDeleteButton,
+  GripIcon,
 } from '@/components/ui/gridShared'
+import { TextExpandModal } from './TextExpandModal'
+
+function ExpandIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M6.5 1H10V4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M10 1L6 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <path d="M4.5 10H1V6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1 10L5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  )
+}
 
 interface BalanceDotProps {
   status: 'none' | 'green' | 'yellow' | 'red'
@@ -46,11 +57,15 @@ interface StoryRowItemProps {
   onPatchStory: (storyId: string, changes: Partial<StoryRow>) => Promise<void>
   onPatchStaffing: (storyId: string, teamMemberId: string, hours: number) => Promise<void>
   onDelete: (storyId: string, label: string) => void
-  onMoveUp: (storyId: string) => void
-  onMoveDown: (storyId: string) => void
   onAddRow: (epicId: string) => void
-  isFirst: boolean
-  isLast: boolean
+  onDragStart: (id: string) => void
+  onDragOver: (id: string) => void
+  onDrop: (id: string) => void
+  onDragEnd: () => void
+  isDragging: boolean
+  isDragOver: boolean
+  dragEnabled: boolean
+  collapsedCols: Set<string>
 }
 
 export function StoryRowItem({
@@ -61,11 +76,15 @@ export function StoryRowItem({
   onPatchStory,
   onPatchStaffing,
   onDelete,
-  onMoveUp,
-  onMoveDown,
   onAddRow,
-  isFirst,
-  isLast,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  isDragging,
+  isDragOver,
+  dragEnabled,
+  collapsedCols,
 }: StoryRowItemProps) {
   const [localTask, setLocalTask] = useState(story.storyTask)
   const [localDescription, setLocalDescription] = useState(story.description ?? '')
@@ -85,6 +104,21 @@ export function StoryRowItem({
     })
     return init
   })
+  const [gripHovered, setGripHovered] = useState(false)
+  const [rowHovered, setRowHovered] = useState(false)
+
+  const descriptionRef = useRef<HTMLTextAreaElement>(null)
+  const [expandedField, setExpandedField] = useState<'description' | null>(null)
+  const [descriptionOverflows, setDescriptionOverflows] = useState(false)
+
+  useEffect(() => {
+    const el = descriptionRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const maxH = 63 // 14px * 1.5 line-height * 3 lines
+    el.style.height = Math.min(el.scrollHeight, maxH) + 'px'
+    setDescriptionOverflows(el.scrollHeight > maxH)
+  }, [localDescription])
 
   const totalStaffing = teamMembers.reduce((sum, tm) => {
     const val = parseFloat(localHours[tm.id] ?? '0')
@@ -198,17 +232,66 @@ export function StoryRowItem({
 
   const rowOpacity = story.disabled ? 0.5 : 1
 
+  const bgColor = isDragging
+    ? '#ffffff'
+    : isDragOver
+    ? '#FFF5F0'
+    : rowHovered
+    ? 'var(--cc-off-white)'
+    : '#ffffff'
+
   const tdBorder: React.CSSProperties = {
     borderRight: '1px solid var(--cc-gray-light)',
     padding: '8px 10px',
   }
 
   return (
+    <>
     <tr
-      style={{ ...GRID_ROW_STYLE, opacity: rowOpacity }}
-      onMouseEnter={onGridRowMouseEnter}
-      onMouseLeave={onGridRowMouseLeave}
+      draggable={gripHovered && dragEnabled}
+      onDragStart={(e) => {
+        if (!dragEnabled) return
+        e.dataTransfer.effectAllowed = 'move'
+        onDragStart(story.id)
+      }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        onDragOver(story.id)
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        onDrop(story.id)
+      }}
+      onDragEnd={onDragEnd}
+      onMouseEnter={() => setRowHovered(true)}
+      onMouseLeave={() => setRowHovered(false)}
+      style={{
+        backgroundColor: bgColor,
+        borderBottom: '1px solid var(--cc-gray-light)',
+        transition: isDragging ? 'none' : 'background-color 0.1s',
+        opacity: isDragging ? 0.4 * rowOpacity : rowOpacity,
+        outline: isDragOver && !isDragging ? '2px solid var(--cc-burnt-sienna)' : 'none',
+        outlineOffset: '-2px',
+      }}
     >
+      {/* Drag handle */}
+      <td
+        onPointerEnter={() => setGripHovered(true)}
+        onPointerLeave={() => setGripHovered(false)}
+        style={{
+          ...tdBorder,
+          width: '36px',
+          textAlign: 'center',
+          cursor: dragEnabled ? 'grab' : 'default',
+          color: rowHovered && dragEnabled ? 'var(--cc-gray-mid)' : 'var(--cc-gray-light)',
+          userSelect: 'none',
+        }}
+        title={dragEnabled ? 'Drag to reorder' : undefined}
+      >
+        {dragEnabled && <GripIcon />}
+      </td>
+
       {/* # */}
       <td
         style={{
@@ -265,40 +348,77 @@ export function StoryRowItem({
       </td>
 
       {/* Description */}
-      <td style={{ ...tdBorder, minWidth: '140px' }}>
-        <input
-          type="text"
+      <td style={{ ...tdBorder, minWidth: '140px', position: 'relative' }}>
+        <textarea
+          ref={descriptionRef}
           value={localDescription}
           onChange={(e) => setLocalDescription(e.target.value)}
           onBlur={() => handleTextBlur('description', localDescription)}
           placeholder="Description…"
-          style={GRID_INPUT_STYLE}
+          rows={1}
+          style={{
+            ...GRID_INPUT_STYLE,
+            resize: 'none',
+            overflow: 'hidden',
+            lineHeight: '1.5',
+            display: 'block',
+          }}
         />
+        {descriptionOverflows && (
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setExpandedField('description')}
+            title="Expand description"
+            style={{
+              position: 'absolute',
+              bottom: '5px',
+              right: '6px',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '0',
+              color: 'var(--cc-gray-mid)',
+              lineHeight: 1,
+              opacity: rowHovered ? 1 : 0,
+              transition: 'opacity 0.15s',
+            }}
+          >
+            <ExpandIcon />
+          </button>
+        )}
       </td>
 
       {/* Assumptions */}
-      <td style={{ ...tdBorder, minWidth: '140px' }}>
-        <input
-          type="text"
-          value={localAssumptions}
-          onChange={(e) => setLocalAssumptions(e.target.value)}
-          onBlur={() => handleTextBlur('assumptions', localAssumptions)}
-          placeholder="Assumptions…"
-          style={GRID_INPUT_STYLE}
-        />
-      </td>
+      {collapsedCols.has('assumptions') ? (
+        <td style={{ ...tdBorder, width: '20px', padding: 0 }} />
+      ) : (
+        <td style={{ ...tdBorder, minWidth: '140px' }}>
+          <input
+            type="text"
+            value={localAssumptions}
+            onChange={(e) => setLocalAssumptions(e.target.value)}
+            onBlur={() => handleTextBlur('assumptions', localAssumptions)}
+            placeholder="Assumptions…"
+            style={GRID_INPUT_STYLE}
+          />
+        </td>
+      )}
 
       {/* Deliverables */}
-      <td style={{ ...tdBorder, minWidth: '140px' }}>
-        <input
-          type="text"
-          value={localDeliverables}
-          onChange={(e) => setLocalDeliverables(e.target.value)}
-          onBlur={() => handleTextBlur('deliverables', localDeliverables)}
-          placeholder="Deliverables…"
-          style={GRID_INPUT_STYLE}
-        />
-      </td>
+      {collapsedCols.has('deliverables') ? (
+        <td style={{ ...tdBorder, width: '20px', padding: 0 }} />
+      ) : (
+        <td style={{ ...tdBorder, minWidth: '140px' }}>
+          <input
+            type="text"
+            value={localDeliverables}
+            onChange={(e) => setLocalDeliverables(e.target.value)}
+            onBlur={() => handleTextBlur('deliverables', localDeliverables)}
+            placeholder="Deliverables…"
+            style={GRID_INPUT_STYLE}
+          />
+        </td>
+      )}
 
       {/* Testable */}
       <td style={{ ...tdBorder, width: '52px', textAlign: 'center' }}>
@@ -397,57 +517,33 @@ export function StoryRowItem({
         </td>
       ))}
 
-      {/* Move + Delete */}
+      {/* Delete */}
       <td
         style={{
           padding: '8px 6px',
-          width: '72px',
+          width: '52px',
           textAlign: 'center',
-          whiteSpace: 'nowrap',
         }}
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'center' }}>
-          <button
-            onClick={() => onMoveUp(story.id)}
-            disabled={isFirst}
-            title="Move up"
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: isFirst ? 'default' : 'pointer',
-              padding: '2px 4px',
-              color: isFirst ? 'var(--cc-gray-light)' : 'var(--cc-gray-mid)',
-              lineHeight: 1,
-              fontSize: '12px',
-            }}
-            aria-label="Move story up"
-          >
-            ▲
-          </button>
-          <button
-            onClick={() => onMoveDown(story.id)}
-            disabled={isLast}
-            title="Move down"
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: isLast ? 'default' : 'pointer',
-              padding: '2px 4px',
-              color: isLast ? 'var(--cc-gray-light)' : 'var(--cc-gray-mid)',
-              lineHeight: 1,
-              fontSize: '12px',
-            }}
-            aria-label="Move story down"
-          >
-            ▼
-          </button>
-          <GridDeleteButton
-            onClick={() => onDelete(story.id, localTask)}
-            label="Delete story"
-            title="Delete story"
-          />
-        </span>
+        <GridDeleteButton
+          onClick={() => onDelete(story.id, localTask)}
+          label="Delete story"
+          title="Delete story"
+        />
       </td>
     </tr>
+    {expandedField === 'description' && createPortal(
+      <TextExpandModal
+        title="Description"
+        value={localDescription}
+        onChange={setLocalDescription}
+        onClose={() => {
+          setExpandedField(null)
+          void handleTextBlur('description', localDescription)
+        }}
+      />,
+      document.body
+    )}
+    </>
   )
 }
