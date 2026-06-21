@@ -4,6 +4,8 @@ import { EpicsGrid } from '@/components/EpicsGrid'
 import type { EpicRow } from '@/components/EpicsGrid/types'
 import { calculateEpicSummaries } from '@/lib/calculations/epics'
 
+export const dynamic = 'force-dynamic'
+
 interface QARatios {
   ratioQAToDev: number
   ratioTestCaseAuthoring: number

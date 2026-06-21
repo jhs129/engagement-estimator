@@ -3,9 +3,9 @@ import { z } from 'zod'
 export const createStorySchema = z.object({
   epicId: z.string().min(1),
   storyTask: z.string().min(1),
-  description: z.string().optional(),
-  assumptions: z.string().optional(),
-  deliverables: z.string().optional(),
+  description: z.string().nullable().optional(),
+  assumptions: z.string().nullable().optional(),
+  deliverables: z.string().nullable().optional(),
   disabled: z.boolean().optional(),
   testable: z.boolean().optional(),
   estimateLow: z.number().min(0).nullable().optional(),
@@ -30,7 +30,7 @@ export const updateStorySchema = z.object({
 
 export const createEpicSchema = z.object({
   name: z.string().min(1),
-  description: z.string().optional(),
+  description: z.string().nullable().optional(),
   isFoundation: z.boolean().optional(),
   order: z.number().int(),
 })

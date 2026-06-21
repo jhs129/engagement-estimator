@@ -98,6 +98,11 @@ export function StoriesGrid({
     return map
   }, [epics])
 
+  const facetEpics = useMemo(() => {
+    const usedIds = new Set(stories.map((s) => s.epicId))
+    return epics.filter((e) => usedIds.has(e.id))
+  }, [epics, stories])
+
   // Base sort: epic position, then story.order within epic
   const sortedStories = useMemo(() => {
     return [...stories].sort((a, b) => {
@@ -524,8 +529,8 @@ export function StoriesGrid({
         <button onClick={handleExport} style={GRID_TOOLBAR_BTN_STYLE}>Export CSV</button>
       </div>
 
-      {/* Epic filter chips */}
-      {epics.length > 0 && (
+      {/* Epic filter chips — faceted: only epics present in current stories */}
+      {facetEpics.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
           <span style={{
             fontFamily: 'var(--font-display)',
@@ -549,7 +554,7 @@ export function StoriesGrid({
           >
             All
           </button>
-          {epics.map((epic) => {
+          {facetEpics.map((epic) => {
             const active = filterEpicIds.includes(epic.id)
             return (
               <button

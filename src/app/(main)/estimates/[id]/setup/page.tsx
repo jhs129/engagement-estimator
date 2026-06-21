@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { EstimateSetupForm } from '@/components/EstimateSetupForm';
 import type { EstimateSetupFormData, Client, Project } from '@/components/EstimateSetupForm/types';
 
+export const dynamic = 'force-dynamic'
+
 interface FetchResult {
   data: EstimateSetupFormData;
   clients: Client[];
