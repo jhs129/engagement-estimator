@@ -2,28 +2,14 @@
 
 import { useState, useCallback } from 'react'
 import type { TeamMemberRow, LaborRoleOption, SaveState } from './types'
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  fontFamily: 'var(--font-body)',
-  fontSize: '14px',
-  color: 'var(--cc-black)',
-  padding: '0',
-}
-
-const selectStyle: React.CSSProperties = {
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  fontFamily: 'var(--font-body)',
-  fontSize: '14px',
-  color: 'var(--cc-black)',
-  cursor: 'pointer',
-  width: '100%',
-}
+import {
+  GRID_INPUT_STYLE,
+  GRID_SELECT_STYLE,
+  GRID_TD_STYLE,
+  GridDeleteButton,
+  GridSaveIndicator,
+  GripIcon,
+} from '@/components/ui/gridShared'
 
 interface TeamRowItemProps {
   row: TeamMemberRow
@@ -32,6 +18,13 @@ interface TeamRowItemProps {
   onSave: (id: string, changes: Partial<TeamMemberRow>) => Promise<void>
   onDelete: (id: string, hasTitle: boolean) => void
   saveState: SaveState
+  onAddRow: () => void
+  onDragStart: (id: string) => void
+  onDragOver: (id: string) => void
+  onDrop: (id: string) => void
+  onDragEnd: () => void
+  isDragging: boolean
+  isDragOver: boolean
 }
 
 export function TeamRowItem({
@@ -41,6 +34,13 @@ export function TeamRowItem({
   onSave,
   onDelete,
   saveState,
+  onAddRow,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  isDragging,
+  isDragOver,
 }: TeamRowItemProps) {
   const [localLaborRoleId, setLocalLaborRoleId] = useState<string | null>(row.laborRoleId)
   const [localTitleOverride, setLocalTitleOverride] = useState(row.titleOverride ?? '')
@@ -50,14 +50,23 @@ export function TeamRowItem({
   )
   const [localTargetedResource, setLocalTargetedResource] = useState(row.targetedResource ?? '')
   const [editingRackRate, setEditingRackRate] = useState(false)
+  const [gripHovered, setGripHovered] = useState(false)
+  const [rowHovered, setRowHovered] = useState(false)
 
   const selectedRole = laborRoles.find((lr) => lr.id === localLaborRoleId) ?? null
-
   const computedAbbreviation = localAbbrevOverride || selectedRole?.abbreviation || ''
   const computedRackRate =
     localRackRateOverride !== ''
       ? Number(localRackRateOverride)
       : selectedRole?.rackRate ?? null
+
+  const bgColor = isDragging
+    ? '#ffffff'
+    : isDragOver
+    ? '#FFF5F0'
+    : rowHovered
+    ? 'var(--cc-off-white)'
+    : '#ffffff'
 
   const handleRoleChange = useCallback(
     async (value: string) => {
@@ -65,10 +74,7 @@ export function TeamRowItem({
       const roleId = value === '' ? null : value
       setLocalLaborRoleId(roleId)
       setLocalTitleOverride('')
-      await onSave(row.id, {
-        laborRoleId: roleId,
-        titleOverride: null,
-      })
+      await onSave(row.id, { laborRoleId: roleId, titleOverride: null })
     },
     [row.id, onSave]
   )
@@ -80,9 +86,7 @@ export function TeamRowItem({
         titleOverride: override,
         laborRoleId: override ? null : localLaborRoleId,
       })
-      if (override) {
-        setLocalLaborRoleId(null)
-      }
+      if (override) setLocalLaborRoleId(null)
     }
   }, [row.id, row.titleOverride, localTitleOverride, localLaborRoleId, onSave])
 
@@ -110,23 +114,52 @@ export function TeamRowItem({
 
   const hasTitle = !!(localTitleOverride || selectedRole)
 
-  const rowBg = '#ffffff'
-  const rowHoverBg = 'var(--cc-off-white)'
-
   return (
     <tr
+      draggable={gripHovered}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move'
+        onDragStart(row.id)
+      }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        onDragOver(row.id)
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        onDrop(row.id)
+      }}
+      onDragEnd={onDragEnd}
+      onMouseEnter={() => setRowHovered(true)}
+      onMouseLeave={() => setRowHovered(false)}
       style={{
-        backgroundColor: rowBg,
+        backgroundColor: bgColor,
         borderBottom: '1px solid var(--cc-gray-light)',
-        transition: 'background-color 0.1s',
-      }}
-      onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLTableRowElement).style.backgroundColor = rowHoverBg
-      }}
-      onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLTableRowElement).style.backgroundColor = rowBg
+        transition: isDragging ? 'none' : 'background-color 0.1s',
+        opacity: isDragging ? 0.4 : 1,
+        outline: isDragOver && !isDragging ? '2px solid var(--cc-burnt-sienna)' : 'none',
+        outlineOffset: '-2px',
       }}
     >
+      {/* Drag handle */}
+      <td
+        onPointerEnter={() => setGripHovered(true)}
+        onPointerLeave={() => setGripHovered(false)}
+        style={{
+          padding: '10px 12px',
+          width: '36px',
+          textAlign: 'center',
+          borderRight: '1px solid var(--cc-gray-light)',
+          cursor: 'grab',
+          color: rowHovered ? 'var(--cc-gray-mid)' : 'var(--cc-gray-light)',
+          userSelect: 'none',
+        }}
+        title="Drag to reorder"
+      >
+        <GripIcon />
+      </td>
+
       {/* # */}
       <td
         style={{
@@ -134,7 +167,7 @@ export function TeamRowItem({
           fontFamily: 'var(--font-body)',
           fontSize: '14px',
           color: 'var(--cc-gray-mid)',
-          width: '48px',
+          width: '36px',
           textAlign: 'center',
           borderRight: '1px solid var(--cc-gray-light)',
         }}
@@ -143,13 +176,7 @@ export function TeamRowItem({
       </td>
 
       {/* Title — role select OR free-text override */}
-      <td
-        style={{
-          padding: '10px 12px',
-          minWidth: '180px',
-          borderRight: '1px solid var(--cc-gray-light)',
-        }}
-      >
+      <td style={{ ...GRID_TD_STYLE, minWidth: '180px' }}>
         {localTitleOverride ? (
           <input
             type="text"
@@ -157,14 +184,14 @@ export function TeamRowItem({
             onChange={(e) => setLocalTitleOverride(e.target.value)}
             onBlur={handleTitleOverrideBlur}
             placeholder="Free-text title…"
-            style={inputStyle}
+            style={GRID_INPUT_STYLE}
           />
         ) : (
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
             <select
               value={localLaborRoleId ?? ''}
               onChange={(e) => handleRoleChange(e.target.value)}
-              style={{ ...selectStyle, flex: 1 }}
+              style={{ ...GRID_SELECT_STYLE, flex: 1 }}
             >
               <option value="">-- Select role --</option>
               {laborRoles.map((lr) => (
@@ -193,9 +220,7 @@ export function TeamRowItem({
         {localTitleOverride && (
           <button
             title="Switch back to role select"
-            onClick={() => {
-              setLocalTitleOverride('')
-            }}
+            onClick={() => setLocalTitleOverride('')}
             style={{
               background: 'none',
               border: 'none',
@@ -213,29 +238,22 @@ export function TeamRowItem({
       </td>
 
       {/* Abbrev Override */}
-      <td
-        style={{
-          padding: '10px 12px',
-          width: '120px',
-          borderRight: '1px solid var(--cc-gray-light)',
-        }}
-      >
+      <td style={{ ...GRID_TD_STYLE, width: '120px' }}>
         <input
           type="text"
           value={localAbbrevOverride}
           onChange={(e) => setLocalAbbrevOverride(e.target.value)}
           onBlur={handleAbbrevBlur}
           placeholder="Override…"
-          style={inputStyle}
+          style={GRID_INPUT_STYLE}
         />
       </td>
 
       {/* Abbreviation (computed, read-only) */}
       <td
         style={{
-          padding: '10px 12px',
+          ...GRID_TD_STYLE,
           width: '100px',
-          borderRight: '1px solid var(--cc-gray-light)',
           fontFamily: 'var(--font-body)',
           fontSize: '14px',
           color: computedAbbreviation ? 'var(--cc-black)' : 'var(--cc-gray-light)',
@@ -245,13 +263,7 @@ export function TeamRowItem({
       </td>
 
       {/* Rack Rate */}
-      <td
-        style={{
-          padding: '10px 12px',
-          width: '110px',
-          borderRight: '1px solid var(--cc-gray-light)',
-        }}
-      >
+      <td style={{ ...GRID_TD_STYLE, width: '110px' }}>
         {editingRackRate ? (
           <input
             type="number"
@@ -260,7 +272,7 @@ export function TeamRowItem({
             onBlur={handleRackRateBlur}
             placeholder="0"
             autoFocus
-            style={{ ...inputStyle, width: '80px' }}
+            style={{ ...GRID_INPUT_STYLE, width: '80px' }}
           />
         ) : (
           <button
@@ -283,72 +295,32 @@ export function TeamRowItem({
       </td>
 
       {/* Targeted Resource */}
-      <td
-        style={{
-          padding: '10px 12px',
-          borderRight: '1px solid var(--cc-gray-light)',
-        }}
-      >
+      <td style={GRID_TD_STYLE}>
         <input
           type="text"
           value={localTargetedResource}
           onChange={(e) => setLocalTargetedResource(e.target.value)}
           onBlur={handleTargetedResourceBlur}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              handleTargetedResourceBlur()
+              onAddRow()
+            }
+          }}
           placeholder="e.g. John Smith"
-          style={inputStyle}
+          style={GRID_INPUT_STYLE}
         />
       </td>
 
-      {/* Delete */}
-      <td
-        style={{
-          padding: '10px 12px',
-          width: '52px',
-          textAlign: 'center',
-        }}
-      >
-        {saveState === 'error' && (
-          <span
-            title="Save error"
-            style={{
-              fontSize: '11px',
-              color: 'var(--cc-burnt-sienna)',
-              display: 'block',
-              marginBottom: '2px',
-            }}
-          >
-            !
-          </span>
-        )}
-        <button
+      {/* Save + Delete */}
+      <td style={{ padding: '10px 12px', width: '52px', textAlign: 'center' }}>
+        <GridSaveIndicator saveState={saveState} />
+        <GridDeleteButton
           onClick={() => onDelete(row.id, hasTitle)}
-          title="Delete row"
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '4px',
-            color: 'var(--cc-gray-mid)',
-            lineHeight: 1,
-          }}
-          aria-label="Delete team member"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M2 4h12M5.333 4V2.667A1.333 1.333 0 0 1 6.667 1.333h2.666A1.333 1.333 0 0 1 10.667 2.667V4m2 0v9.333A1.333 1.333 0 0 1 11.333 14.667H4.667A1.333 1.333 0 0 1 3.333 13.333V4h9.334Z"
-              stroke="currentColor"
-              strokeWidth="1.25"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+          label="Delete team member"
+          title="Delete team member"
+        />
       </td>
     </tr>
   )

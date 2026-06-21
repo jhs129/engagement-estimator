@@ -6,17 +6,31 @@ import { QuestionRowItem } from './QuestionRowItem'
 import { exportQuestionsToCsv } from './csvExport'
 import { CsvImportModal } from '@/components/CsvImportModal'
 import { parseQuestionsImport } from '@/lib/csv/import'
+import {
+  GRID_TOOLBAR_BTN_STYLE,
+  GRID_HEADER_CELL_STYLE,
+  GridAddRowButton,
+} from '@/components/ui/gridShared'
 
 let localIdCounter = 0
-function nextLocalId(): string {
+
+function createBlankRow(order: number): QuestionRow {
   localIdCounter += 1
-  return `local-${localIdCounter}`
+  return {
+    id: `local-${localIdCounter}`,
+    type: 'Question',
+    description: '',
+    notes: null,
+    order,
+  }
 }
 
 type RowSaveState = Record<string, SaveState>
 
 export function QuestionsGrid({ estimateId, initialRows }: QuestionsGridProps) {
-  const [rows, setRows] = useState<QuestionRow[]>(initialRows)
+  const [rows, setRows] = useState<QuestionRow[]>(
+    initialRows.length > 0 ? initialRows : [createBlankRow(0)]
+  )
   const [rowSaveStates, setRowSaveStates] = useState<RowSaveState>({})
   const [importModalOpen, setImportModalOpen] = useState(false)
 
@@ -110,15 +124,8 @@ export function QuestionsGrid({ estimateId, initialRows }: QuestionsGridProps) {
   )
 
   const handleAddRow = useCallback(() => {
-    const newRow: QuestionRow = {
-      id: nextLocalId(),
-      type: 'Question',
-      description: '',
-      notes: null,
-      order: rows.length,
-    }
-    setRows((prev) => [...prev, newRow])
-  }, [rows.length])
+    setRows((prev) => [...prev, createBlankRow(prev.length)])
+  }, [])
 
   const handleExport = useCallback(() => {
     exportQuestionsToCsv(rows, estimateId)
@@ -194,35 +201,13 @@ export function QuestionsGrid({ estimateId, initialRows }: QuestionsGridProps) {
       >
         <button
           onClick={() => setImportModalOpen(true)}
-          style={{
-            padding: '7px 16px',
-            fontFamily: 'var(--font-display)',
-            fontSize: '12px',
-            fontWeight: 600,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-            background: 'none',
-            border: '1px solid var(--cc-gray-light)',
-            cursor: 'pointer',
-            color: 'var(--cc-black)',
-          }}
+          style={GRID_TOOLBAR_BTN_STYLE}
         >
           Import CSV
         </button>
         <button
           onClick={handleExport}
-          style={{
-            padding: '7px 16px',
-            fontFamily: 'var(--font-display)',
-            fontSize: '12px',
-            fontWeight: 600,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-            background: 'none',
-            border: '1px solid var(--cc-gray-light)',
-            cursor: 'pointer',
-            color: 'var(--cc-black)',
-          }}
+          style={GRID_TOOLBAR_BTN_STYLE}
         >
           Export CSV
         </button>
@@ -249,14 +234,7 @@ export function QuestionsGrid({ estimateId, initialRows }: QuestionsGridProps) {
                 <th
                   key={col}
                   style={{
-                    padding: '10px 12px',
-                    fontFamily: 'var(--font-display)',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: 'var(--cc-gray-mid)',
-                    textAlign: 'left',
+                    ...GRID_HEADER_CELL_STYLE,
                     borderRight: col !== '' ? '1px solid var(--cc-gray-light)' : 'none',
                   }}
                 >
@@ -266,56 +244,22 @@ export function QuestionsGrid({ estimateId, initialRows }: QuestionsGridProps) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={5}
-                  style={{
-                    padding: '24px',
-                    textAlign: 'center',
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '14px',
-                    color: 'var(--cc-gray-mid)',
-                  }}
-                >
-                  No questions or assumptions yet. Click + to add one.
-                </td>
-              </tr>
-            ) : (
-              rows.map((row, index) => (
-                <QuestionRowItem
-                  key={row.id}
-                  row={row}
-                  rowNumber={index + 1}
-                  onSave={handleSave}
-                  onDelete={handleDelete}
-                  saveState={rowSaveStates[row.id] ?? 'idle'}
-                />
-              ))
-            )}
+            {rows.map((row, index) => (
+              <QuestionRowItem
+                key={row.id}
+                row={row}
+                rowNumber={index + 1}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                saveState={rowSaveStates[row.id] ?? 'idle'}
+                onAddRow={handleAddRow}
+              />
+            ))}
           </tbody>
         </table>
       </div>
 
-      {/* Add Row Button */}
-      <button
-        onClick={handleAddRow}
-        style={{
-          marginTop: '12px',
-          padding: '8px 16px',
-          fontFamily: 'var(--font-display)',
-          fontSize: '13px',
-          fontWeight: 600,
-          letterSpacing: '0.04em',
-          textTransform: 'uppercase',
-          backgroundColor: 'var(--cc-burnt-sienna)',
-          color: '#ffffff',
-          border: 'none',
-          cursor: 'pointer',
-        }}
-      >
-        + Add Row
-      </button>
+      <GridAddRowButton onClick={handleAddRow} label="+ Add Row" />
     </div>
   )
 }

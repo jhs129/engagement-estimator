@@ -6,11 +6,26 @@ import { EpicRowItem } from './EpicRowItem'
 import { exportEpicsToCsv } from './csvExport'
 import { CsvImportModal } from '@/components/CsvImportModal'
 import { parseEpicsImport } from '@/lib/csv/import'
+import {
+  GRID_HEADER_CELL_STYLE,
+  GRID_TOOLBAR_BTN_STYLE,
+  GridAddRowButton,
+} from '@/components/ui/gridShared'
 
-let localIdCounter = 0
-function nextLocalId(): string {
-  localIdCounter += 1
-  return `local-${localIdCounter}`
+let epicLocalIdCounter = 0
+function createBlankEpic(order: number): EpicRow {
+  epicLocalIdCounter += 1
+  return {
+    id: `local-${epicLocalIdCounter}`,
+    name: '',
+    description: null,
+    isFoundation: false,
+    order,
+    storyHours: 0,
+    foundationHours: 0,
+    totalHours: 0,
+    percent: 0,
+  }
 }
 
 type RowSaveState = Record<string, SaveState>
@@ -18,7 +33,9 @@ type RowSaveState = Record<string, SaveState>
 const COLUMNS = ['#', 'Epic Name', 'Description', 'Story Hours', 'Foundation Hours', 'Total Hours', '%', '']
 
 export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
-  const [rows, setRows] = useState<EpicRow[]>(initialRows)
+  const [rows, setRows] = useState<EpicRow[]>(
+    initialRows.length === 0 ? [createBlankEpic(0)] : initialRows
+  )
   const [rowSaveStates, setRowSaveStates] = useState<RowSaveState>({})
   const [importModalOpen, setImportModalOpen] = useState(false)
 
@@ -124,19 +141,8 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
   )
 
   const handleAddEpic = useCallback(() => {
-    const newRow: EpicRow = {
-      id: nextLocalId(),
-      name: '',
-      description: null,
-      isFoundation: false,
-      order: rows.length,
-      storyHours: 0,
-      foundationHours: 0,
-      totalHours: 0,
-      percent: 0,
-    }
-    setRows((prev) => [...prev, newRow])
-  }, [rows.length])
+    setRows((prev) => [...prev, createBlankEpic(prev.length)])
+  }, [])
 
   const handleExport = useCallback(() => {
     exportEpicsToCsv(rows, estimateId)
@@ -224,35 +230,13 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
       >
         <button
           onClick={() => setImportModalOpen(true)}
-          style={{
-            padding: '7px 16px',
-            fontFamily: 'var(--font-display)',
-            fontSize: '12px',
-            fontWeight: 600,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-            background: 'none',
-            border: '1px solid var(--cc-gray-light)',
-            cursor: 'pointer',
-            color: 'var(--cc-black)',
-          }}
+          style={GRID_TOOLBAR_BTN_STYLE}
         >
           Import CSV
         </button>
         <button
           onClick={handleExport}
-          style={{
-            padding: '7px 16px',
-            fontFamily: 'var(--font-display)',
-            fontSize: '12px',
-            fontWeight: 600,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-            background: 'none',
-            border: '1px solid var(--cc-gray-light)',
-            cursor: 'pointer',
-            color: 'var(--cc-black)',
-          }}
+          style={GRID_TOOLBAR_BTN_STYLE}
         >
           Export CSV
         </button>
@@ -279,13 +263,7 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
                 <th
                   key={`${col}-${i}`}
                   style={{
-                    padding: '10px 12px',
-                    fontFamily: 'var(--font-display)',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: 'var(--cc-gray-mid)',
+                    ...GRID_HEADER_CELL_STYLE,
                     textAlign: i >= 3 && i <= 6 ? 'right' : 'left',
                     borderRight: i < COLUMNS.length - 1 ? '1px solid var(--cc-gray-light)' : 'none',
                   }}
@@ -303,6 +281,7 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
                 rowNumber={index + 1}
                 onSave={handleSave}
                 onDelete={handleDelete}
+                onAddRow={handleAddEpic}
                 saveState={rowSaveStates[row.id] ?? 'idle'}
               />
             ))}
@@ -388,24 +367,7 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
       </div>
 
       {/* Add Epic Button */}
-      <button
-        onClick={handleAddEpic}
-        style={{
-          marginTop: '12px',
-          padding: '8px 16px',
-          fontFamily: 'var(--font-display)',
-          fontSize: '13px',
-          fontWeight: 600,
-          letterSpacing: '0.04em',
-          textTransform: 'uppercase',
-          backgroundColor: 'var(--cc-burnt-sienna)',
-          color: '#ffffff',
-          border: 'none',
-          cursor: 'pointer',
-        }}
-      >
-        + Add Epic
-      </button>
+      <GridAddRowButton onClick={handleAddEpic} label="+ Add Epic" />
     </div>
   )
 }

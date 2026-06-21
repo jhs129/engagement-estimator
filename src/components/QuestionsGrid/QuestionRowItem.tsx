@@ -2,28 +2,16 @@
 
 import { useState, useCallback } from 'react'
 import type { QuestionRow, SaveState } from './types'
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  fontFamily: 'var(--font-body)',
-  fontSize: '14px',
-  color: 'var(--cc-black)',
-  padding: '0',
-}
-
-const selectStyle: React.CSSProperties = {
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  fontFamily: 'var(--font-body)',
-  fontSize: '14px',
-  color: 'var(--cc-black)',
-  cursor: 'pointer',
-  width: '100%',
-}
+import {
+  GRID_INPUT_STYLE,
+  GRID_SELECT_STYLE,
+  GRID_TD_STYLE,
+  GRID_ROW_STYLE,
+  onGridRowMouseEnter,
+  onGridRowMouseLeave,
+  GridDeleteButton,
+  GridSaveIndicator,
+} from '@/components/ui/gridShared'
 
 interface QuestionRowItemProps {
   row: QuestionRow
@@ -31,9 +19,10 @@ interface QuestionRowItemProps {
   onSave: (id: string, changes: Partial<QuestionRow>) => Promise<void>
   onDelete: (id: string, description: string) => void
   saveState: SaveState
+  onAddRow: () => void
 }
 
-export function QuestionRowItem({ row, rowNumber, onSave, onDelete, saveState }: QuestionRowItemProps) {
+export function QuestionRowItem({ row, rowNumber, onSave, onDelete, saveState, onAddRow }: QuestionRowItemProps) {
   const [localType, setLocalType] = useState<'Question' | 'Assumption'>(row.type)
   const [localDescription, setLocalDescription] = useState(row.description)
   const [localNotes, setLocalNotes] = useState(row.notes ?? '')
@@ -61,45 +50,30 @@ export function QuestionRowItem({ row, rowNumber, onSave, onDelete, saveState }:
 
   return (
     <tr
-      style={{
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid var(--cc-gray-light)',
-        transition: 'background-color 0.1s',
-      }}
-      onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLTableRowElement).style.backgroundColor = 'var(--cc-off-white)'
-      }}
-      onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#ffffff'
-      }}
+      style={GRID_ROW_STYLE}
+      onMouseEnter={onGridRowMouseEnter}
+      onMouseLeave={onGridRowMouseLeave}
     >
       {/* # */}
       <td
         style={{
-          padding: '10px 12px',
+          ...GRID_TD_STYLE,
           fontFamily: 'var(--font-body)',
           fontSize: '14px',
           color: 'var(--cc-gray-mid)',
           width: '48px',
           textAlign: 'center',
-          borderRight: '1px solid var(--cc-gray-light)',
         }}
       >
         {rowNumber}
       </td>
 
       {/* Type */}
-      <td
-        style={{
-          padding: '10px 12px',
-          width: '140px',
-          borderRight: '1px solid var(--cc-gray-light)',
-        }}
-      >
+      <td style={{ ...GRID_TD_STYLE, width: '140px' }}>
         <select
           value={localType}
           onChange={(e) => handleTypeChange(e.target.value as 'Question' | 'Assumption')}
-          style={selectStyle}
+          style={GRID_SELECT_STYLE}
         >
           <option value="Question">Question</option>
           <option value="Assumption">Assumption</option>
@@ -107,36 +81,27 @@ export function QuestionRowItem({ row, rowNumber, onSave, onDelete, saveState }:
       </td>
 
       {/* Description */}
-      <td
-        style={{
-          padding: '10px 12px',
-          borderRight: '1px solid var(--cc-gray-light)',
-        }}
-      >
+      <td style={GRID_TD_STYLE}>
         <input
           type="text"
           value={localDescription}
           onChange={(e) => setLocalDescription(e.target.value)}
           onBlur={handleDescriptionBlur}
           placeholder="Enter description…"
-          style={inputStyle}
+          style={GRID_INPUT_STYLE}
         />
       </td>
 
       {/* Notes/Answers */}
-      <td
-        style={{
-          padding: '10px 12px',
-          borderRight: '1px solid var(--cc-gray-light)',
-        }}
-      >
+      <td style={GRID_TD_STYLE}>
         <input
           type="text"
           value={localNotes}
           onChange={(e) => setLocalNotes(e.target.value)}
           onBlur={handleNotesBlur}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleNotesBlur(); onAddRow() } }}
           placeholder="Notes or answers…"
-          style={inputStyle}
+          style={GRID_INPUT_STYLE}
         />
       </td>
 
@@ -148,48 +113,12 @@ export function QuestionRowItem({ row, rowNumber, onSave, onDelete, saveState }:
           textAlign: 'center',
         }}
       >
-        {saveState === 'error' && (
-          <span
-            title="Save error"
-            style={{
-              fontSize: '11px',
-              color: 'var(--cc-burnt-sienna)',
-              display: 'block',
-              marginBottom: '2px',
-            }}
-          >
-            !
-          </span>
-        )}
-        <button
+        <GridSaveIndicator saveState={saveState} />
+        <GridDeleteButton
           onClick={() => onDelete(row.id, localDescription)}
-          title="Delete row"
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '4px',
-            color: 'var(--cc-gray-mid)',
-            lineHeight: 1,
-          }}
-          aria-label="Delete question"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M2 4h12M5.333 4V2.667A1.333 1.333 0 0 1 6.667 1.333h2.666A1.333 1.333 0 0 1 10.667 2.667V4m2 0v9.333A1.333 1.333 0 0 1 11.333 14.667H4.667A1.333 1.333 0 0 1 3.333 13.333V4h9.334Z"
-              stroke="currentColor"
-              strokeWidth="1.25"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+          label="Delete question"
+          title="Delete question"
+        />
       </td>
     </tr>
   )

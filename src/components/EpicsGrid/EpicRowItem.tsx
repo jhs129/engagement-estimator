@@ -2,39 +2,26 @@
 
 import { useState, useCallback } from 'react'
 import type { EpicRow, SaveState } from './types'
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  fontFamily: 'var(--font-body)',
-  fontSize: '14px',
-  color: 'var(--cc-black)',
-  padding: '0',
-}
-
-const TrashIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M2 4h12M5.333 4V2.667A1.333 1.333 0 0 1 6.667 1.333h2.666A1.333 1.333 0 0 1 10.667 2.667V4m2 0v9.333A1.333 1.333 0 0 1 11.333 14.667H4.667A1.333 1.333 0 0 1 3.333 13.333V4h9.334Z"
-      stroke="currentColor"
-      strokeWidth="1.25"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-)
+import {
+  GRID_INPUT_STYLE,
+  GRID_TD_STYLE,
+  GRID_ROW_STYLE,
+  onGridRowMouseEnter,
+  onGridRowMouseLeave,
+  GridDeleteButton,
+  GridSaveIndicator,
+} from '@/components/ui/gridShared'
 
 interface EpicRowItemProps {
   row: EpicRow
   rowNumber: number
   onSave: (id: string, changes: Partial<Pick<EpicRow, 'name' | 'description'>>) => Promise<void>
   onDelete: (id: string, name: string) => void
+  onAddRow: () => void
   saveState: SaveState
 }
 
-export function EpicRowItem({ row, rowNumber, onSave, onDelete, saveState }: EpicRowItemProps) {
+export function EpicRowItem({ row, rowNumber, onSave, onDelete, onAddRow, saveState }: EpicRowItemProps) {
   const [localName, setLocalName] = useState(row.name)
   const [localDescription, setLocalDescription] = useState(row.description ?? '')
 
@@ -57,29 +44,19 @@ export function EpicRowItem({ row, rowNumber, onSave, onDelete, saveState }: Epi
 
   return (
     <tr
-      style={{
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid var(--cc-gray-light)',
-        transition: 'background-color 0.1s',
-        ...foundationBorderStyle,
-      }}
-      onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLTableRowElement).style.backgroundColor = 'var(--cc-off-white)'
-      }}
-      onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#ffffff'
-      }}
+      style={{ ...GRID_ROW_STYLE, ...foundationBorderStyle }}
+      onMouseEnter={onGridRowMouseEnter}
+      onMouseLeave={onGridRowMouseLeave}
     >
       {/* # */}
       <td
         style={{
-          padding: '10px 12px',
+          ...GRID_TD_STYLE,
           fontFamily: 'var(--font-body)',
           fontSize: '14px',
           color: 'var(--cc-gray-mid)',
           width: '48px',
           textAlign: 'center',
-          borderRight: '1px solid var(--cc-gray-light)',
         }}
       >
         {rowNumber}
@@ -88,8 +65,7 @@ export function EpicRowItem({ row, rowNumber, onSave, onDelete, saveState }: Epi
       {/* Epic Name */}
       <td
         style={{
-          padding: '10px 12px',
-          borderRight: '1px solid var(--cc-gray-light)',
+          ...GRID_TD_STYLE,
           minWidth: '200px',
         }}
       >
@@ -127,38 +103,39 @@ export function EpicRowItem({ row, rowNumber, onSave, onDelete, saveState }: Epi
             onChange={(e) => setLocalName(e.target.value)}
             onBlur={handleNameBlur}
             placeholder="Epic name…"
-            style={inputStyle}
+            style={GRID_INPUT_STYLE}
           />
         )}
       </td>
 
       {/* Description */}
-      <td
-        style={{
-          padding: '10px 12px',
-          borderRight: '1px solid var(--cc-gray-light)',
-        }}
-      >
+      <td style={GRID_TD_STYLE}>
         <input
           type="text"
           value={localDescription}
           onChange={(e) => setLocalDescription(e.target.value)}
           onBlur={handleDescriptionBlur}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              handleDescriptionBlur()
+              onAddRow()
+            }
+          }}
           placeholder="Description…"
-          style={inputStyle}
+          style={GRID_INPUT_STYLE}
         />
       </td>
 
       {/* Story Hours */}
       <td
         style={{
-          padding: '10px 12px',
+          ...GRID_TD_STYLE,
           fontFamily: 'var(--font-body)',
           fontSize: '14px',
           color: 'var(--cc-black)',
           textAlign: 'right',
           width: '110px',
-          borderRight: '1px solid var(--cc-gray-light)',
         }}
       >
         {row.storyHours.toFixed(1)}
@@ -167,13 +144,12 @@ export function EpicRowItem({ row, rowNumber, onSave, onDelete, saveState }: Epi
       {/* Foundation Hours */}
       <td
         style={{
-          padding: '10px 12px',
+          ...GRID_TD_STYLE,
           fontFamily: 'var(--font-body)',
           fontSize: '14px',
           color: 'var(--cc-black)',
           textAlign: 'right',
           width: '130px',
-          borderRight: '1px solid var(--cc-gray-light)',
         }}
       >
         {row.foundationHours.toFixed(1)}
@@ -182,14 +158,13 @@ export function EpicRowItem({ row, rowNumber, onSave, onDelete, saveState }: Epi
       {/* Total Hours */}
       <td
         style={{
-          padding: '10px 12px',
+          ...GRID_TD_STYLE,
           fontFamily: 'var(--font-body)',
           fontSize: '14px',
           fontWeight: 600,
           color: 'var(--cc-black)',
           textAlign: 'right',
           width: '110px',
-          borderRight: '1px solid var(--cc-gray-light)',
         }}
       >
         {row.totalHours.toFixed(1)}
@@ -198,13 +173,12 @@ export function EpicRowItem({ row, rowNumber, onSave, onDelete, saveState }: Epi
       {/* % */}
       <td
         style={{
-          padding: '10px 12px',
+          ...GRID_TD_STYLE,
           fontFamily: 'var(--font-body)',
           fontSize: '14px',
           color: 'var(--cc-gray-mid)',
           textAlign: 'right',
           width: '72px',
-          borderRight: '1px solid var(--cc-gray-light)',
         }}
       >
         {row.percent.toFixed(1)}%
@@ -218,35 +192,13 @@ export function EpicRowItem({ row, rowNumber, onSave, onDelete, saveState }: Epi
           textAlign: 'center',
         }}
       >
-        {saveState === 'error' && (
-          <span
-            title="Save error"
-            style={{
-              fontSize: '11px',
-              color: 'var(--cc-burnt-sienna)',
-              display: 'block',
-              marginBottom: '2px',
-            }}
-          >
-            !
-          </span>
-        )}
+        <GridSaveIndicator saveState={saveState} />
         {!row.isFoundation && (
-          <button
+          <GridDeleteButton
             onClick={() => onDelete(row.id, localName)}
+            label="Delete epic"
             title="Delete epic"
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '4px',
-              color: 'var(--cc-gray-mid)',
-              lineHeight: 1,
-            }}
-            aria-label="Delete epic"
-          >
-            <TrashIcon />
-          </button>
+          />
         )}
       </td>
     </tr>
