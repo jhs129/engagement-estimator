@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { TeamGrid } from '@/components/TeamGrid'
 import type { TeamMemberRow, LaborRoleOption } from '@/components/TeamGrid/types'
 
+export const dynamic = 'force-dynamic'
 interface FetchResult {
   rows: TeamMemberRow[]
   laborRoles: LaborRoleOption[]

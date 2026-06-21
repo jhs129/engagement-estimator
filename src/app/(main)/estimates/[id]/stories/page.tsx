@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { StoriesGrid } from '@/components/StoriesGrid'
 import type { StoryRow, EpicGroup, TeamMemberCol } from '@/components/StoriesGrid/types'
 
+export const dynamic = 'force-dynamic'
+
 interface StoriesPageData {
   stories: StoryRow[]
   epics: EpicGroup[]

@@ -4,6 +4,7 @@ import { InvestmentGrid } from '@/components/InvestmentGrid'
 import { calculateInvestmentSummary } from '@/lib/calculations/investment'
 import type { InvestmentMemberRow } from '@/components/InvestmentGrid/types'
 
+export const dynamic = 'force-dynamic'
 const DEFAULT_RISK_PREMIUM_PCT = 0.15
 
 interface InvestmentPageData {

@@ -5,6 +5,7 @@ import { calculateStaffingDelta } from '@/lib/calculations/staffing'
 import { getWeekColumns, snapToMonday, FALLBACK_START_DATE } from '@/components/StaffingGrid/weekUtils'
 import type { StaffingMemberRow } from '@/components/StaffingGrid/types'
 
+export const dynamic = 'force-dynamic'
 interface StaffingPageData {
   rows: StaffingMemberRow[]
   weekColumns: string[]

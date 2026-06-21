@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { QuestionsGrid } from '@/components/QuestionsGrid'
 import type { QuestionRow } from '@/components/QuestionsGrid/types'
 
+export const dynamic = 'force-dynamic'
 async function fetchQuestions(estimateId: string): Promise<QuestionRow[]> {
   try {
     const { prisma } = await import('@/lib/prisma')
