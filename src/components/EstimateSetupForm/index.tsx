@@ -80,22 +80,24 @@ export function EstimateSetupForm({ estimateId, initialData, clients, initialPro
       isFirstRender.current = false;
       return;
     }
-    if (!clientId) {
-      setProjects([]);
-      setProjectId('');
-      return;
-    }
-    setLoadingProjects(true);
-    fetch(`/api/clients/${clientId}/projects`)
-      .then((r) => r.json())
-      .then((data: Project[]) => {
-        setProjects(data);
-        setLoadingProjects(false);
-      })
-      .catch(() => {
+    async function loadProjects() {
+      if (!clientId) {
         setProjects([]);
+        setProjectId('');
+        return;
+      }
+      setLoadingProjects(true);
+      try {
+        const r = await fetch(`/api/clients/${clientId}/projects`);
+        const data: Project[] = await r.json();
+        setProjects(data);
+      } catch {
+        setProjects([]);
+      } finally {
         setLoadingProjects(false);
-      });
+      }
+    }
+    loadProjects();
   }, [clientId]);
 
   function set<K extends keyof typeof form>(key: K, val: (typeof form)[K]) {

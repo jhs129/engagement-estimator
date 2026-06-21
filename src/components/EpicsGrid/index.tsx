@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type { EpicRow, EpicsGridProps, SaveState } from './types'
 import { EpicRowItem } from './EpicRowItem'
 import { exportEpicsToCsv } from './csvExport'
@@ -30,7 +30,7 @@ function createBlankEpic(order: number): EpicRow {
 
 type RowSaveState = Record<string, SaveState>
 
-const COLUMNS = ['#', 'Epic Name', 'Description', 'Story Hours', 'Foundation Hours', 'Total Hours', '%', '']
+const COLUMNS = ['', '#', 'Epic Name', 'Description', 'Story Hours', 'Foundation Hours', 'Total Hours', '%', '']
 
 export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
   const [rows, setRows] = useState<EpicRow[]>(
@@ -38,6 +38,11 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
   )
   const [rowSaveStates, setRowSaveStates] = useState<RowSaveState>({})
   const [importModalOpen, setImportModalOpen] = useState(false)
+  const [dragSourceId, setDragSourceId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const rowsRef = useRef(rows)
+  useEffect(() => { rowsRef.current = rows }, [rows])
+  const dragSourceIdRef = useRef<string | null>(null)
 
   const setRowSaveState = useCallback((id: string, state: SaveState) => {
     setRowSaveStates((prev) => ({ ...prev, [id]: state }))
@@ -142,6 +147,58 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
 
   const handleAddEpic = useCallback(() => {
     setRows((prev) => [...prev, createBlankEpic(prev.length)])
+  }, [])
+
+  const handleDragStart = useCallback((id: string) => {
+    setDragSourceId(id)
+    dragSourceIdRef.current = id
+  }, [])
+
+  const handleDragOver = useCallback((id: string) => {
+    setDragOverId(id)
+  }, [])
+
+  const handleDrop = useCallback(
+    async (targetId: string) => {
+      const sourceId = dragSourceIdRef.current
+      setDragSourceId(null)
+      setDragOverId(null)
+      dragSourceIdRef.current = null
+      if (!sourceId || sourceId === targetId) return
+
+      const sorted = [...rowsRef.current].sort((a, b) => a.order - b.order)
+      const sourceIdx = sorted.findIndex((r) => r.id === sourceId)
+      const targetIdx = sorted.findIndex((r) => r.id === targetId)
+      if (sourceIdx < 0 || targetIdx < 0) return
+
+      const reordered = [...sorted]
+      const [moved] = reordered.splice(sourceIdx, 1)
+      reordered.splice(targetIdx, 0, moved)
+
+      const withNewOrders = reordered.map((r, i) => ({ ...r, order: i }))
+      setRows(withNewOrders)
+
+      const originalOrderById = Object.fromEntries(sorted.map((r) => [r.id, r.order]))
+      const toUpdate = withNewOrders.filter(
+        (r) => r.order !== originalOrderById[r.id] && !r.id.startsWith('local-')
+      )
+      await Promise.all(
+        toUpdate.map((r) =>
+          fetch(`/api/estimates/${estimateId}/epics/${r.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order: r.order }),
+          })
+        )
+      )
+    },
+    [estimateId]
+  )
+
+  const handleDragEnd = useCallback(() => {
+    setDragSourceId(null)
+    setDragOverId(null)
+    dragSourceIdRef.current = null
   }, [])
 
   const handleExport = useCallback(() => {
@@ -264,7 +321,8 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
                   key={`${col}-${i}`}
                   style={{
                     ...GRID_HEADER_CELL_STYLE,
-                    textAlign: i >= 3 && i <= 6 ? 'right' : 'left',
+                    width: i === 0 ? '36px' : undefined,
+                    textAlign: i >= 4 && i <= 7 ? 'right' : 'left',
                     borderRight: i < COLUMNS.length - 1 ? '1px solid var(--cc-gray-light)' : 'none',
                   }}
                 >
@@ -274,7 +332,7 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
+            {[...rows].sort((a, b) => a.order - b.order).map((row, index) => (
               <EpicRowItem
                 key={row.id}
                 row={row}
@@ -283,6 +341,12 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
                 onDelete={handleDelete}
                 onAddRow={handleAddEpic}
                 saveState={rowSaveStates[row.id] ?? 'idle'}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
+                isDragging={dragSourceId === row.id}
+                isDragOver={dragOverId === row.id}
               />
             ))}
           </tbody>
@@ -294,7 +358,7 @@ export function EpicsGrid({ estimateId, initialRows }: EpicsGridProps) {
               }}
             >
               <td
-                colSpan={3}
+                colSpan={4}
                 style={{
                   padding: '10px 12px',
                   fontFamily: 'var(--font-display)',

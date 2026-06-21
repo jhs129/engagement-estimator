@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import type { StoryRow, StoriesGridProps } from './types'
 import { StoryRowItem } from './StoryRowItem'
 import { exportStoriesToCsv } from './csvExport'
@@ -81,10 +81,14 @@ export function StoriesGrid({
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [filterEpicIds, setFilterEpicIds] = useState<string[]>([])
   const [sortState, setSortState] = useState<SortState>(null)
+  const [collapsedCols, setCollapsedCols] = useState<Set<string>>(new Set())
 
   const storiesRef = useRef(stories)
-  storiesRef.current = stories
+  useEffect(() => { storiesRef.current = stories }, [stories])
   const creatingLocalStories = useRef(new Set<string>())
+  const [dragSourceId, setDragSourceId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const dragSourceIdRef = useRef<string | null>(null)
 
   const epicOrder = useMemo(() => {
     const order: Record<string, number> = {}
@@ -151,6 +155,15 @@ export function StoriesGrid({
     setFilterEpicIds((prev) =>
       prev.includes(epicId) ? prev.filter((id) => id !== epicId) : [...prev, epicId]
     )
+  }, [])
+
+  const toggleCol = useCallback((col: string) => {
+    setCollapsedCols((prev) => {
+      const next = new Set(prev)
+      if (next.has(col)) next.delete(col)
+      else next.add(col)
+      return next
+    })
   }, [])
 
   const handleSort = useCallback((col: SortCol) => {
@@ -294,91 +307,67 @@ export function StoriesGrid({
     [estimateId]
   )
 
-  const handleMoveUp = useCallback(
-    async (storyId: string) => {
-      const current = storiesRef.current
-      const epicOrd = epicOrder
-      const flat = [...current].sort((a, b) => {
-        const d = (epicOrd[a.epicId] ?? 999) - (epicOrd[b.epicId] ?? 999)
-        return d !== 0 ? d : a.order - b.order
-      })
-      const idx = flat.findIndex((s) => s.id === storyId)
-      if (idx <= 0) return
-      const story = flat[idx]
-      const prev = flat[idx - 1]
-      if (story.epicId !== prev.epicId) return
+  const handleDragStart = useCallback((id: string) => {
+    setDragSourceId(id)
+    dragSourceIdRef.current = id
+  }, [])
 
-      const newOrderCurrent = prev.order
-      const newOrderPrev = story.order
-      setStories((all) =>
-        all.map((s) => {
-          if (s.id === storyId) return { ...s, order: newOrderCurrent }
-          if (s.id === prev.id) return { ...s, order: newOrderPrev }
-          return s
-        })
+  const handleDragOver = useCallback((id: string) => {
+    setDragOverId(id)
+  }, [])
+
+  const handleDrop = useCallback(
+    async (targetId: string) => {
+      const sourceId = dragSourceIdRef.current
+      setDragSourceId(null)
+      setDragOverId(null)
+      dragSourceIdRef.current = null
+      if (!sourceId || sourceId === targetId) return
+
+      const current = storiesRef.current
+      const source = current.find((s) => s.id === sourceId)
+      const target = current.find((s) => s.id === targetId)
+      if (!source || !target || source.epicId !== target.epicId) return
+
+      const epicStories = [...current.filter((s) => s.epicId === source.epicId)].sort(
+        (a, b) => a.order - b.order
       )
-      try {
-        await Promise.all([
-          fetch(`/api/estimates/${estimateId}/stories/${storyId}`, {
+      const sourceIdx = epicStories.findIndex((s) => s.id === sourceId)
+      const targetIdx = epicStories.findIndex((s) => s.id === targetId)
+      if (sourceIdx < 0 || targetIdx < 0) return
+
+      const reordered = [...epicStories]
+      const [moved] = reordered.splice(sourceIdx, 1)
+      reordered.splice(targetIdx, 0, moved)
+
+      const withNewOrders = reordered.map((s, i) => ({ ...s, order: i }))
+      const updatesById = Object.fromEntries(withNewOrders.map((s) => [s.id, s.order]))
+      setStories((prev) =>
+        prev.map((s) => (s.id in updatesById ? { ...s, order: updatesById[s.id] } : s))
+      )
+
+      const originalOrderById = Object.fromEntries(epicStories.map((s) => [s.id, s.order]))
+      const toUpdate = withNewOrders.filter(
+        (s) => s.order !== originalOrderById[s.id] && !s.id.startsWith('local-')
+      )
+      await Promise.all(
+        toUpdate.map((s) =>
+          fetch(`/api/estimates/${estimateId}/stories/${s.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order: newOrderCurrent }),
-          }),
-          fetch(`/api/estimates/${estimateId}/stories/${prev.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order: newOrderPrev }),
-          }),
-        ])
-      } catch (err) {
-        console.error('Error reordering stories', err)
-      }
+            body: JSON.stringify({ order: s.order }),
+          })
+        )
+      )
     },
-    [estimateId, epicOrder]
+    [estimateId]
   )
 
-  const handleMoveDown = useCallback(
-    async (storyId: string) => {
-      const current = storiesRef.current
-      const epicOrd = epicOrder
-      const flat = [...current].sort((a, b) => {
-        const d = (epicOrd[a.epicId] ?? 999) - (epicOrd[b.epicId] ?? 999)
-        return d !== 0 ? d : a.order - b.order
-      })
-      const idx = flat.findIndex((s) => s.id === storyId)
-      if (idx < 0 || idx >= flat.length - 1) return
-      const story = flat[idx]
-      const next = flat[idx + 1]
-      if (story.epicId !== next.epicId) return
-
-      const newOrderCurrent = next.order
-      const newOrderNext = story.order
-      setStories((all) =>
-        all.map((s) => {
-          if (s.id === storyId) return { ...s, order: newOrderCurrent }
-          if (s.id === next.id) return { ...s, order: newOrderNext }
-          return s
-        })
-      )
-      try {
-        await Promise.all([
-          fetch(`/api/estimates/${estimateId}/stories/${storyId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order: newOrderCurrent }),
-          }),
-          fetch(`/api/estimates/${estimateId}/stories/${next.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order: newOrderNext }),
-          }),
-        ])
-      } catch (err) {
-        console.error('Error reordering stories', err)
-      }
-    },
-    [estimateId, epicOrder]
-  )
+  const handleDragEnd = useCallback(() => {
+    setDragSourceId(null)
+    setDragOverId(null)
+    dragSourceIdRef.current = null
+  }, [])
 
   const handleExport = useCallback(() => {
     exportStoriesToCsv(stories, epics, teamMembers, estimateId)
@@ -587,6 +576,7 @@ export function StoriesGrid({
         >
           <thead>
             <tr style={{ borderBottom: '2px solid var(--cc-gray-light)' }}>
+              <th style={{ ...headerCellStyle, width: '36px', textAlign: 'center' }} />
               <th style={{ ...headerCellStyle, width: '36px', textAlign: 'center' }}>#</th>
               <th style={{ ...headerCellStyle, width: '36px', textAlign: 'center' }} title="Disable row">✓</th>
               <th
@@ -602,8 +592,84 @@ export function StoriesGrid({
                 Story / Task{sortIcon('task')}
               </th>
               <th style={{ ...headerCellStyle, minWidth: '140px' }}>Description</th>
-              <th style={{ ...headerCellStyle, minWidth: '140px' }}>Assumptions</th>
-              <th style={{ ...headerCellStyle, minWidth: '140px' }}>Deliverables</th>
+              {/* Assumptions — collapsible */}
+              {collapsedCols.has('assumptions') ? (
+                <th
+                  style={{
+                    ...headerCellStyle,
+                    width: '20px',
+                    padding: '10px 4px',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    userSelect: 'none',
+                  }}
+                  onClick={() => toggleCol('assumptions')}
+                  title="Show Assumptions"
+                >
+                  ▶
+                </th>
+              ) : (
+                <th style={{ ...headerCellStyle, minWidth: '140px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                    Assumptions
+                    <button
+                      onClick={() => toggleCol('assumptions')}
+                      title="Hide column"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '0 1px',
+                        color: 'var(--cc-gray-mid)',
+                        lineHeight: 1,
+                        flexShrink: 0,
+                        fontSize: '10px',
+                      }}
+                    >
+                      ◀
+                    </button>
+                  </span>
+                </th>
+              )}
+              {/* Deliverables — collapsible */}
+              {collapsedCols.has('deliverables') ? (
+                <th
+                  style={{
+                    ...headerCellStyle,
+                    width: '20px',
+                    padding: '10px 4px',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    userSelect: 'none',
+                  }}
+                  onClick={() => toggleCol('deliverables')}
+                  title="Show Deliverables"
+                >
+                  ▶
+                </th>
+              ) : (
+                <th style={{ ...headerCellStyle, minWidth: '140px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                    Deliverables
+                    <button
+                      onClick={() => toggleCol('deliverables')}
+                      title="Hide column"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '0 1px',
+                        color: 'var(--cc-gray-mid)',
+                        lineHeight: 1,
+                        flexShrink: 0,
+                        fontSize: '10px',
+                      }}
+                    >
+                      ◀
+                    </button>
+                  </span>
+                </th>
+              )}
               <th style={{ ...headerCellStyle, width: '52px', textAlign: 'center' }}>Test?</th>
               <th
                 style={{ ...headerCellStyle, width: '64px', textAlign: 'right', ...sortableThStyle('low') }}
@@ -639,36 +705,36 @@ export function StoriesGrid({
                   {tm.abbreviation}
                 </th>
               ))}
-              <th style={{ ...headerCellStyle, width: '72px', borderRight: 'none', textAlign: 'center' }} />
+              <th style={{ ...headerCellStyle, width: '52px', borderRight: 'none', textAlign: 'center' }} />
             </tr>
           </thead>
           <tbody>
-            {displayStories.map((story, idx) => {
-              const isFirst = idx === 0 || displayStories[idx - 1].epicId !== story.epicId
-              const isLast = idx === displayStories.length - 1 || displayStories[idx + 1].epicId !== story.epicId
-              return (
-                <StoryRowItem
-                  key={story.id}
-                  story={story}
-                  rowNumber={idx + 1}
-                  epics={epics}
-                  teamMembers={teamMembers}
-                  onPatchStory={handlePatchStory}
-                  onPatchStaffing={handlePatchStaffing}
-                  onDelete={handleDeleteStory}
-                  onMoveUp={handleMoveUp}
-                  onMoveDown={handleMoveDown}
-                  onAddRow={handleAddRow}
-                  isFirst={isFirst}
-                  isLast={isLast}
-                />
-              )
-            })}
+            {displayStories.map((story, idx) => (
+              <StoryRowItem
+                key={story.id}
+                story={story}
+                rowNumber={idx + 1}
+                epics={epics}
+                teamMembers={teamMembers}
+                onPatchStory={handlePatchStory}
+                onPatchStaffing={handlePatchStaffing}
+                onDelete={handleDeleteStory}
+                onAddRow={handleAddRow}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
+                isDragging={dragSourceId === story.id}
+                isDragOver={dragOverId === story.id}
+                dragEnabled={!sortState}
+                collapsedCols={collapsedCols}
+              />
+            ))}
           </tbody>
           <tfoot>
             <tr style={{ borderTop: '2px solid var(--cc-gray-light)' }}>
               <td
-                colSpan={10}
+                colSpan={11}
                 style={{
                   ...totalCellStyle,
                   textAlign: 'left',

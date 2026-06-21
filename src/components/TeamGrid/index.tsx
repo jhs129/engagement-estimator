@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type { TeamMemberRow, TeamGridProps, SaveState } from './types'
 import { TeamRowItem } from './TeamRowItem'
 import { exportTeamToCsv } from './csvExport'
@@ -42,7 +42,7 @@ export function TeamGrid({ estimateId, initialRows, laborRoles }: TeamGridProps)
   const [dragSourceId, setDragSourceId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const rowsRef = useRef(rows)
-  rowsRef.current = rows
+  useEffect(() => { rowsRef.current = rows }, [rows])
   const dragSourceIdRef = useRef<string | null>(null)
 
   const setRowSaveState = useCallback((id: string, state: SaveState) => {

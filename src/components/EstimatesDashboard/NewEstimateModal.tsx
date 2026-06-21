@@ -69,32 +69,34 @@ export function NewEstimateModal({ onClose }: NewEstimateModalProps) {
   }, [])
 
   useEffect(() => {
-    if (!clientId) {
+    async function loadProjects() {
+      if (!clientId) {
+        setProjects(null)
+        setProjectId('')
+        setShowNewProject(false)
+        return
+      }
+      setLoadingProjects(true)
       setProjects(null)
       setProjectId('')
       setShowNewProject(false)
-      return
-    }
-    setLoadingProjects(true)
-    setProjects(null)
-    setProjectId('')
-    setShowNewProject(false)
 
-    const selectedClient = clients?.find((c) => c.id === clientId)
-    if (selectedClient && !estimateName) {
-      setEstimateName(`${selectedClient.name} Engagement`)
-    }
+      const selectedClient = clients?.find((c) => c.id === clientId)
+      if (selectedClient && !estimateName) {
+        setEstimateName(`${selectedClient.name} Engagement`)
+      }
 
-    fetch(`/api/clients/${clientId}/projects`)
-      .then((r) => r.json())
-      .then((data: Project[]) => {
+      try {
+        const r = await fetch(`/api/clients/${clientId}/projects`)
+        const data: Project[] = await r.json()
         setProjects(data)
-        setLoadingProjects(false)
-      })
-      .catch(() => {
+      } catch {
         setProjects([])
+      } finally {
         setLoadingProjects(false)
-      })
+      }
+    }
+    loadProjects()
   }, [clientId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCreateProject() {
