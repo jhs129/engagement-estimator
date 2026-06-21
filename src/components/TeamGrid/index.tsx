@@ -1,26 +1,49 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import type { TeamMemberRow, TeamGridProps, SaveState } from './types'
 import { TeamRowItem } from './TeamRowItem'
 import { exportTeamToCsv } from './csvExport'
 import { CsvImportModal } from '@/components/CsvImportModal'
 import { parseTeamImport } from '@/lib/csv/import'
+import {
+  GRID_TOOLBAR_BTN_STYLE,
+  GRID_HEADER_CELL_STYLE,
+  GridAddRowButton,
+} from '@/components/ui/gridShared'
 
 const MAX_TEAM_MEMBERS = 20
 
 let localIdCounter = 0
-function nextLocalId(): string {
-  localIdCounter += 1
-  return `local-team-${localIdCounter}`
-}
 
 type RowSaveState = Record<string, SaveState>
 
+function createBlankRow(order: number): TeamMemberRow {
+  localIdCounter += 1
+  return {
+    id: `local-team-${localIdCounter}`,
+    laborRoleId: null,
+    laborRoleName: null,
+    titleOverride: null,
+    abbreviationOverride: null,
+    rackRateOverride: null,
+    adjustedClientRate: null,
+    targetedResource: null,
+    order,
+  }
+}
+
 export function TeamGrid({ estimateId, initialRows, laborRoles }: TeamGridProps) {
-  const [rows, setRows] = useState<TeamMemberRow[]>(initialRows)
+  const [rows, setRows] = useState<TeamMemberRow[]>(
+    initialRows.length > 0 ? initialRows : [createBlankRow(0)]
+  )
   const [rowSaveStates, setRowSaveStates] = useState<RowSaveState>({})
   const [importModalOpen, setImportModalOpen] = useState(false)
+  const [dragSourceId, setDragSourceId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
+  const dragSourceIdRef = useRef<string | null>(null)
 
   const setRowSaveState = useCallback((id: string, state: SaveState) => {
     setRowSaveStates((prev) => ({ ...prev, [id]: state }))
@@ -129,20 +152,61 @@ export function TeamGrid({ estimateId, initialRows, laborRoles }: TeamGridProps)
     [estimateId]
   )
 
+  const handleDragStart = useCallback((id: string) => {
+    setDragSourceId(id)
+    dragSourceIdRef.current = id
+  }, [])
+
+  const handleDragOver = useCallback((id: string) => {
+    setDragOverId(id)
+  }, [])
+
+  const handleDrop = useCallback(
+    async (targetId: string) => {
+      const sourceId = dragSourceIdRef.current
+      setDragSourceId(null)
+      setDragOverId(null)
+      dragSourceIdRef.current = null
+      if (!sourceId || sourceId === targetId) return
+
+      const sorted = [...rowsRef.current].sort((a, b) => a.order - b.order)
+      const sourceIdx = sorted.findIndex((r) => r.id === sourceId)
+      const targetIdx = sorted.findIndex((r) => r.id === targetId)
+      if (sourceIdx < 0 || targetIdx < 0) return
+
+      const reordered = [...sorted]
+      const [moved] = reordered.splice(sourceIdx, 1)
+      reordered.splice(targetIdx, 0, moved)
+
+      const withNewOrders = reordered.map((r, i) => ({ ...r, order: i }))
+      setRows(withNewOrders)
+
+      const originalOrderById = Object.fromEntries(sorted.map((r) => [r.id, r.order]))
+      const toUpdate = withNewOrders.filter(
+        (r) => r.order !== originalOrderById[r.id] && !r.id.startsWith('local-')
+      )
+      await Promise.all(
+        toUpdate.map((r) =>
+          fetch(`/api/estimates/${estimateId}/team/${r.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order: r.order }),
+          })
+        )
+      )
+    },
+    [estimateId]
+  )
+
+  const handleDragEnd = useCallback(() => {
+    setDragSourceId(null)
+    setDragOverId(null)
+    dragSourceIdRef.current = null
+  }, [])
+
   const handleAddRow = useCallback(() => {
     if (rows.length >= MAX_TEAM_MEMBERS) return
-    const newRow: TeamMemberRow = {
-      id: nextLocalId(),
-      laborRoleId: null,
-      laborRoleName: null,
-      titleOverride: null,
-      abbreviationOverride: null,
-      rackRateOverride: null,
-      adjustedClientRate: null,
-      targetedResource: null,
-      order: rows.length,
-    }
-    setRows((prev) => [...prev, newRow])
+    setRows((prev) => [...prev, createBlankRow(prev.length)])
   }, [rows.length])
 
   const handleExport = useCallback(() => {
@@ -231,35 +295,13 @@ export function TeamGrid({ estimateId, initialRows, laborRoles }: TeamGridProps)
       >
         <button
           onClick={() => setImportModalOpen(true)}
-          style={{
-            padding: '7px 16px',
-            fontFamily: 'var(--font-display)',
-            fontSize: '12px',
-            fontWeight: 600,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-            background: 'none',
-            border: '1px solid var(--cc-gray-light)',
-            cursor: 'pointer',
-            color: 'var(--cc-black)',
-          }}
+          style={GRID_TOOLBAR_BTN_STYLE}
         >
           Import CSV
         </button>
         <button
           onClick={handleExport}
-          style={{
-            padding: '7px 16px',
-            fontFamily: 'var(--font-display)',
-            fontSize: '12px',
-            fontWeight: 600,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-            background: 'none',
-            border: '1px solid var(--cc-gray-light)',
-            cursor: 'pointer',
-            color: 'var(--cc-black)',
-          }}
+          style={GRID_TOOLBAR_BTN_STYLE}
         >
           Export CSV
         </button>
@@ -282,21 +324,14 @@ export function TeamGrid({ estimateId, initialRows, laborRoles }: TeamGridProps)
                 borderBottom: '2px solid var(--cc-gray-light)',
               }}
             >
-              {['#', 'Title', 'Abbrev Override', 'Abbreviation', 'Rack Rate', 'Targeted Resource', ''].map(
-                (col) => (
+              {['', '#', 'Title', 'Abbrev Override', 'Abbreviation', 'Rack Rate', 'Targeted Resource', ''].map(
+                (col, i, arr) => (
                   <th
-                    key={col}
+                    key={`${col}-${i}`}
                     style={{
-                      padding: '10px 12px',
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      color: 'var(--cc-gray-mid)',
-                      textAlign: 'left',
-                      borderRight: col !== '' ? '1px solid var(--cc-gray-light)' : 'none',
-                      whiteSpace: 'nowrap',
+                      ...GRID_HEADER_CELL_STYLE,
+                      width: i === 0 ? '36px' : undefined,
+                      borderRight: i < arr.length - 1 ? '1px solid var(--cc-gray-light)' : 'none',
                     }}
                   >
                     {col}
@@ -306,70 +341,34 @@ export function TeamGrid({ estimateId, initialRows, laborRoles }: TeamGridProps)
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={7}
-                  style={{
-                    padding: '24px',
-                    textAlign: 'center',
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '14px',
-                    color: 'var(--cc-gray-mid)',
-                  }}
-                >
-                  No team members yet. Click + to add one.
-                </td>
-              </tr>
-            ) : (
-              rows.map((row, index) => (
-                <TeamRowItem
-                  key={row.id}
-                  row={row}
-                  rowNumber={index + 1}
-                  laborRoles={laborRoles}
-                  onSave={handleSave}
-                  onDelete={handleDelete}
-                  saveState={rowSaveStates[row.id] ?? 'idle'}
-                />
-              ))
-            )}
+            {[...rows].sort((a, b) => a.order - b.order).map((row, index) => (
+              <TeamRowItem
+                key={row.id}
+                row={row}
+                rowNumber={index + 1}
+                laborRoles={laborRoles}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                saveState={rowSaveStates[row.id] ?? 'idle'}
+                onAddRow={handleAddRow}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
+                isDragging={dragSourceId === row.id}
+                isDragOver={dragOverId === row.id}
+              />
+            ))}
           </tbody>
         </table>
       </div>
 
-      {/* Add Row Button */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px' }}>
-        <button
-          onClick={handleAddRow}
-          disabled={atLimit}
-          style={{
-            padding: '8px 16px',
-            fontFamily: 'var(--font-display)',
-            fontSize: '13px',
-            fontWeight: 600,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-            backgroundColor: atLimit ? 'var(--cc-gray-light)' : 'var(--cc-burnt-sienna)',
-            color: atLimit ? 'var(--cc-gray-mid)' : '#ffffff',
-            border: 'none',
-            cursor: atLimit ? 'not-allowed' : 'pointer',
-          }}
-        >
-          + Add Member
-        </button>
-        {atLimit && (
-          <span
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '12px',
-              color: 'var(--cc-gray-mid)',
-            }}
-          >
-            Maximum {MAX_TEAM_MEMBERS} team members reached
-          </span>
-        )}
-      </div>
+      <GridAddRowButton
+        onClick={handleAddRow}
+        label="+ Add Member"
+        disabled={atLimit}
+        disabledLabel={`Maximum ${MAX_TEAM_MEMBERS} team members reached`}
+      />
     </div>
   )
 }

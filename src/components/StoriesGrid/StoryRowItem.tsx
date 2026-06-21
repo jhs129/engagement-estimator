@@ -3,36 +3,14 @@
 import { useState, useCallback } from 'react'
 import type { StoryRow, EpicGroup, TeamMemberCol } from './types'
 import { calculateBalanceCheck } from './balanceCheck'
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  fontFamily: 'var(--font-body)',
-  fontSize: '13px',
-  color: 'var(--cc-black)',
-  padding: '0',
-  minWidth: '0',
-}
-
-const numInputStyle: React.CSSProperties = {
-  ...inputStyle,
-  textAlign: 'right',
-  width: '56px',
-}
-
-const TrashIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M2 4h12M5.333 4V2.667A1.333 1.333 0 0 1 6.667 1.333h2.666A1.333 1.333 0 0 1 10.667 2.667V4m2 0v9.333A1.333 1.333 0 0 1 11.333 14.667H4.667A1.333 1.333 0 0 1 3.333 13.333V4h9.334Z"
-      stroke="currentColor"
-      strokeWidth="1.25"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-)
+import {
+  GRID_INPUT_STYLE,
+  GRID_NUM_INPUT_STYLE,
+  GRID_ROW_STYLE,
+  onGridRowMouseEnter,
+  onGridRowMouseLeave,
+  GridDeleteButton,
+} from '@/components/ui/gridShared'
 
 interface BalanceDotProps {
   status: 'none' | 'green' | 'yellow' | 'red'
@@ -70,6 +48,7 @@ interface StoryRowItemProps {
   onDelete: (storyId: string, label: string) => void
   onMoveUp: (storyId: string) => void
   onMoveDown: (storyId: string) => void
+  onAddRow: (epicId: string) => void
   isFirst: boolean
   isLast: boolean
 }
@@ -84,6 +63,7 @@ export function StoryRowItem({
   onDelete,
   onMoveUp,
   onMoveDown,
+  onAddRow,
   isFirst,
   isLast,
 }: StoryRowItemProps) {
@@ -225,18 +205,9 @@ export function StoryRowItem({
 
   return (
     <tr
-      style={{
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid var(--cc-gray-light)',
-        opacity: rowOpacity,
-        transition: 'background-color 0.1s',
-      }}
-      onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLTableRowElement).style.backgroundColor = 'var(--cc-off-white)'
-      }}
-      onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#ffffff'
-      }}
+      style={{ ...GRID_ROW_STYLE, opacity: rowOpacity }}
+      onMouseEnter={onGridRowMouseEnter}
+      onMouseLeave={onGridRowMouseLeave}
     >
       {/* # */}
       <td
@@ -269,7 +240,7 @@ export function StoryRowItem({
           value={story.epicId}
           onChange={handleEpicChange}
           style={{
-            ...inputStyle,
+            ...GRID_INPUT_STYLE,
             cursor: 'pointer',
           }}
         >
@@ -289,7 +260,7 @@ export function StoryRowItem({
           onChange={(e) => setLocalTask(e.target.value)}
           onBlur={() => handleTextBlur('storyTask', localTask)}
           placeholder="Story / task…"
-          style={inputStyle}
+          style={GRID_INPUT_STYLE}
         />
       </td>
 
@@ -301,7 +272,7 @@ export function StoryRowItem({
           onChange={(e) => setLocalDescription(e.target.value)}
           onBlur={() => handleTextBlur('description', localDescription)}
           placeholder="Description…"
-          style={inputStyle}
+          style={GRID_INPUT_STYLE}
         />
       </td>
 
@@ -313,7 +284,7 @@ export function StoryRowItem({
           onChange={(e) => setLocalAssumptions(e.target.value)}
           onBlur={() => handleTextBlur('assumptions', localAssumptions)}
           placeholder="Assumptions…"
-          style={inputStyle}
+          style={GRID_INPUT_STYLE}
         />
       </td>
 
@@ -325,7 +296,7 @@ export function StoryRowItem({
           onChange={(e) => setLocalDeliverables(e.target.value)}
           onBlur={() => handleTextBlur('deliverables', localDeliverables)}
           placeholder="Deliverables…"
-          style={inputStyle}
+          style={GRID_INPUT_STYLE}
         />
       </td>
 
@@ -349,7 +320,7 @@ export function StoryRowItem({
           onChange={handleLowChange}
           onBlur={handleLowBlur}
           placeholder="0"
-          style={numInputStyle}
+          style={GRID_NUM_INPUT_STYLE}
         />
       </td>
 
@@ -362,7 +333,7 @@ export function StoryRowItem({
           onChange={handleHighChange}
           onBlur={handleHighBlur}
           placeholder="0"
-          style={numInputStyle}
+          style={GRID_NUM_INPUT_STYLE}
         />
       </td>
 
@@ -374,8 +345,9 @@ export function StoryRowItem({
           value={localMean}
           onChange={handleMeanChange}
           onBlur={handleMeanBlur}
+          onKeyDown={(e) => { if (e.key === 'Enter' && teamMembers.length === 0) { e.preventDefault(); handleMeanBlur(); onAddRow(story.epicId) } }}
           placeholder="0"
-          style={numInputStyle}
+          style={GRID_NUM_INPUT_STYLE}
         />
       </td>
 
@@ -402,7 +374,7 @@ export function StoryRowItem({
       </td>
 
       {/* Team member hour columns */}
-      {teamMembers.map((tm) => (
+      {teamMembers.map((tm, tmIdx) => (
         <td key={tm.id} style={{ ...tdBorder, width: '64px' }}>
           <input
             type="number"
@@ -412,8 +384,15 @@ export function StoryRowItem({
               setLocalHours((prev) => ({ ...prev, [tm.id]: e.target.value }))
             }
             onBlur={() => handleHoursBlur(tm.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && tmIdx === teamMembers.length - 1) {
+                e.preventDefault()
+                handleHoursBlur(tm.id)
+                onAddRow(story.epicId)
+              }
+            }}
             aria-label={tm.title}
-            style={numInputStyle}
+            style={GRID_NUM_INPUT_STYLE}
           />
         </td>
       ))}
@@ -462,21 +441,11 @@ export function StoryRowItem({
           >
             ▼
           </button>
-          <button
+          <GridDeleteButton
             onClick={() => onDelete(story.id, localTask)}
+            label="Delete story"
             title="Delete story"
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '2px 4px',
-              color: 'var(--cc-gray-mid)',
-              lineHeight: 1,
-            }}
-            aria-label="Delete story"
-          >
-            <TrashIcon />
-          </button>
+          />
         </span>
       </td>
     </tr>
